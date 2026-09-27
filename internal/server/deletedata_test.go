@@ -35,6 +35,10 @@ func deleteTestServer(t *testing.T, b backend.Backend) (*Server, *httptest.Serve
 	if err != nil {
 		t.Fatal(err)
 	}
+	// A refused delete leaves the database open; Windows cannot remove an
+	// open file, so close it before t.TempDir's cleanup (cleanups run last
+	// registered first). A second Close after a delete that ran is harmless.
+	t.Cleanup(func() { _ = st.Close() })
 	if err := st.SetSetting(context.Background(), "settings.advanced", "1"); err != nil {
 		t.Fatal(err)
 	}

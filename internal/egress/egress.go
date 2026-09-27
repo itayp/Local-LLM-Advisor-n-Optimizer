@@ -21,6 +21,7 @@
 package egress
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -195,9 +196,24 @@ func Local(timeout time.Duration) *http.Client {
 			return nil
 		},
 	}
+	// An IP literal is checked before the dial as well as at the socket:
+	// on Windows (and AIX, OpenBSD) Go rewrites a dial to an unspecified
+	// address (0.0.0.0, ::) into one to loopback before Control runs, so
+	// Control alone would let "0.0.0.0" through as "127.0.0.1". The rule is
+	// the same on every OS: an unspecified address is not this computer.
+	dial := func(ctx context.Context, network, address string) (net.Conn, error) {
+		host, _, err := net.SplitHostPort(address)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %s", ErrNotLocal, address)
+		}
+		if ip := net.ParseIP(host); ip != nil && !ip.IsLoopback() {
+			return nil, fmt.Errorf("%w: %s", ErrNotLocal, address)
+		}
+		return dialer.DialContext(ctx, network, address)
+	}
 	t := &http.Transport{
 		Proxy:                 nil,
-		DialContext:           dialer.DialContext,
+		DialContext:           dial,
 		MaxIdleConns:          10,
 		IdleConnTimeout:       90 * time.Second,
 		ResponseHeaderTimeout: 0,
