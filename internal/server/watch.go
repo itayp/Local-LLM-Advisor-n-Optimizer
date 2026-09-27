@@ -91,6 +91,22 @@ func (s *Server) RunWatch(ctx context.Context, trigger string) (watch.Report, er
 	}
 	defer s.wch.running.Unlock()
 
+	// The daily check never makes the first contact with the model
+	// sources on its own (product rule 5, D-54, D-68): until the person has
+	// fetched the model list once themselves — the button that says what it
+	// downloads — a scheduled check does nothing at all, not even a refresh.
+	// A fresh install that is never used sends nothing anywhere.
+	if trigger == "scheduler" {
+		rows, err := s.store.CatalogModels(ctx, false)
+		if err != nil {
+			return watch.Report{}, err
+		}
+		if !catalogFetched(rows) {
+			s.log.Info("watch: the model list has never been fetched here; the scheduled check waits for the first fetch, which is the person's own click")
+			return watch.Report{Trigger: trigger}, ErrNotFetchedYet
+		}
+	}
+
 	settings := s.watchSettings(ctx)
 	if !settings.Enabled {
 		// The master switch: no refresh, no check, no log line at all
@@ -169,6 +185,10 @@ func (s *Server) RunWatch(ctx context.Context, trigger string) (watch.Report, er
 	})
 }
 
+// ErrNotFetchedYet is RunWatch's answer to a scheduled check on an install
+// whose model list has never been fetched: nothing was contacted.
+var ErrNotFetchedYet = errors.New("server: the model list has not been fetched yet; the scheduled check waits for it")
+
 // WatchScheduler runs the new-model watch on its own schedule until ctx is
 // done: a short, jittered pause after the daemon starts, then a check, then
 // watch.Config.DefaultInterval between checks (also jittered, so a fleet of
@@ -182,7 +202,7 @@ func (s *Server) WatchScheduler(ctx context.Context) {
 		return
 	}
 	for {
-		if _, err := s.RunWatch(ctx, "scheduler"); err != nil && !errors.Is(err, ErrRefreshRunning) {
+		if _, err := s.RunWatch(ctx, "scheduler"); err != nil && !errors.Is(err, ErrRefreshRunning) && !errors.Is(err, ErrNotFetchedYet) {
 			s.log.Warn("watch: a scheduled check did not finish", "err", err)
 		}
 		interval := cfg.DefaultInterval

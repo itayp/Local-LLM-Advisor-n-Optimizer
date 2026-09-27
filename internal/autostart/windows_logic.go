@@ -57,3 +57,11 @@ func windowsEnableWith(reg windowsRegistry, t Target) error {
 func windowsDisableWith(reg windowsRegistry) error {
 	return reg.deleteRunValue(windowsRunValueName)
 }
+
+func windowsForgetWith(reg windowsRegistry) (bool, error) {
+	_, ok, err := reg.getRunValue(windowsRunValueName)
+	if err != nil || !ok {
+		return false, err
+	}
+	return true, reg.deleteRunValue(windowsRunValueName)
+}

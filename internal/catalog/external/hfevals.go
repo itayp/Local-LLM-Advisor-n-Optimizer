@@ -184,8 +184,13 @@ func (r *runner) parseHFModel(src Source, s sizeRef, body []byte, sr *SourceRepo
 			sr.Unreadable = append(sr.Unreadable, fmt.Sprintf("%s: %s states no date and the repo's last change is unreadable", repo, e.metric))
 			continue
 		}
+		// The result's own link is shown to the person as "read it at the
+		// source". It is written by whoever published the result, so only
+		// an https link is kept; anything else (another scheme, a
+		// javascript: URL, an unparseable one) is replaced by the repo's
+		// own page, which the advisor built itself.
 		sourceURL := e.sourceURL
-		if sourceURL == "" {
+		if !httpsURL(sourceURL) {
 			sourceURL = "https://huggingface.co/" + repo
 		}
 		detail := map[string]any{"dataset": e.dataset, "task": e.task, "date_basis": basis, "maker": s.Family.Maintainer}
@@ -377,4 +382,10 @@ func pendingPR(v any) bool {
 		return pr != ""
 	}
 	return true
+}
+
+// httpsURL reports whether s is an absolute https URL with a host.
+func httpsURL(s string) bool {
+	u, err := url.Parse(s)
+	return err == nil && u.Scheme == "https" && u.Host != "" && u.User == nil
 }

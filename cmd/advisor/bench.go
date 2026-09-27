@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -11,14 +12,15 @@ import (
 	"math"
 	"net/http"
 	"net/url"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"advisor/internal/backend/ollama"
 	"advisor/internal/bench"
 	"advisor/internal/catalog"
+	"advisor/internal/egress"
 	"advisor/internal/figure"
 	"advisor/internal/recommend"
 	"advisor/internal/server"
@@ -89,7 +91,7 @@ func runBench(args []string, stdout, stderr io.Writer) int {
 	c := &benchCLI{
 		// The daemon only ever listens on the loopback address (product rule 7).
 		base:   "http://" + server.LoopbackHost + ":" + strconv.Itoa(*port),
-		client: &http.Client{Timeout: 3 * time.Minute},
+		client: egress.Local(3 * time.Minute), // this computer only
 		out:    stdout, errOut: stderr,
 	}
 	if *history {
@@ -279,7 +281,7 @@ func (c *benchCLI) start(req bench.Request) (bench.Run, error) {
 func (c *benchCLI) follow(id int64, onEvent func(bench.Progress) bool) (bench.Progress, error) {
 	req, _ := http.NewRequest(http.MethodGet, c.base+"/api/bench/"+strconv.FormatInt(id, 10), nil)
 	req.Header.Set("Accept", "text/event-stream")
-	resp, err := (&http.Client{}).Do(req) // no timeout: a run takes as long as it takes
+	resp, err := egress.Local(0).Do(req) // no timeout: a run takes as long as it takes
 	if err != nil {
 		return bench.Progress{}, err
 	}
@@ -388,36 +390,19 @@ func (c *benchCLI) cancelCheck(req bench.Request, phase bench.Phase) int {
 }
 
 // ollamaLoaded asks Ollama directly — not through the daemon — what it has
-// loaded: the independent half of the cancel check.
+// loaded: the independent half of the cancel check. It uses the same
+// adapter the daemon does, so OLLAMA_HOST is read the same way and the
+// request goes to this computer only.
 func ollamaLoaded() ([]string, error) {
-	host := strings.TrimSpace(os.Getenv("OLLAMA_HOST"))
-	if host == "" {
-		host = "http://127.0.0.1:11434"
-	}
-	if !strings.HasPrefix(host, "http://") && !strings.HasPrefix(host, "https://") {
-		host = "http://" + host
-	}
-	resp, err := (&http.Client{Timeout: 10 * time.Second}).Get(strings.TrimRight(host, "/") + "/api/ps")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	loaded, err := ollama.New().Running(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
-	var ps struct {
-		Models []struct {
-			Name  string `json:"name"`
-			Model string `json:"model"`
-		} `json:"models"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&ps); err != nil {
-		return nil, err
-	}
-	var out []string
-	for _, m := range ps.Models {
-		if m.Model != "" {
-			out = append(out, m.Model)
-		} else {
-			out = append(out, m.Name)
-		}
+	out := make([]string, 0, len(loaded))
+	for _, m := range loaded {
+		out = append(out, m.Name)
 	}
 	return out, nil
 }

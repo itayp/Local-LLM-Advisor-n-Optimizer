@@ -77,5 +77,7 @@ func APITypes() []any {
 		SettingsUpdate{},
 		ModelRemoveRequest{},
 		update.Info{}, // GET /api/update/check (build-plan step 11); no numeric fields
+		DataDeleteRequest{},
+		DataDeleteResponse{}, // POST /api/data/delete (build-plan step 12, D-68)
 	}
 }

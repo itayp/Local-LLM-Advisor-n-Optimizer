@@ -38,6 +38,7 @@ import (
 	"time"
 
 	"advisor/internal/hardware"
+	"advisor/internal/suite"
 )
 
 // State is the coarse state of a runtime on this machine. The four values
@@ -224,15 +225,20 @@ type PullProgress struct {
 // benchmark harness (step 6), its only caller. It deliberately does not
 // grow chat history, tools or images: a chat app's job (D-4), not the
 // advisor's (D-8: the advisor calls no LLM to do its own job).
+//
+// It carries no free text (ARCHITECTURE.md D-65): Prompt is a
+// suite.Prompt, which only the embedded benchmark suite can make, and
+// Options are numbers. Model is the runtime's name for a model the
+// harness found installed; KeepAlive is the harness's own configuration.
+// There is no system prompt. internal/archtest holds this shape.
 type GenerateRequest struct {
 	Model  string
-	Prompt string
-	System string
+	Prompt suite.Prompt
 
-	// Options is passed through to the runtime mostly unexamined (num_ctx,
-	// num_predict, temperature, seed, ...); the benchmark harness owns what
-	// it means and how it is scored.
-	Options map[string]any
+	// Options is the suite's runtime options (temperature, seed, the
+	// answer's budget, the context under test); the benchmark harness owns
+	// what they mean and how the run is scored.
+	Options suite.Options
 
 	// KeepAlive controls how long the runtime keeps the model resident after
 	// this request ("5m", "0" to unload immediately, "-1" forever). ""
@@ -251,6 +257,16 @@ type GenerateRequest struct {
 	// prompt times the wrong thing — and not to shift the context when the
 	// answer reaches its end.
 	NoTruncate bool
+}
+
+// DataForgetter is optional: a backend that wrote files of its own on the
+// advisor's behalf (a log it captured, an installer it downloaded) removes
+// them when the person deletes everything the advisor stored (ARCHITECTURE.md
+// D-68). removed and kept are sentences for the person: what went, and
+// what was left in place on purpose and why. A backend without such files
+// does not implement it.
+type DataForgetter interface {
+	ForgetData() (removed, kept []string, err error)
 }
 
 // GenerateEvent is one update from Generate: a token chunk, or the final

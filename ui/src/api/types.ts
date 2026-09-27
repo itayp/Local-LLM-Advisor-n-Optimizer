@@ -1094,6 +1094,18 @@ export interface UpdateCheckResponse {
   error?: string
 }
 
+/**
+ * POST /api/data/delete (Go: server.DataDeleteResponse; build-plan step 12,
+ * ARCHITECTURE.md D-68): what "delete everything" removed and kept, in
+ * words. The daemon quits once it has answered.
+ */
+export interface DataDeleteResponse {
+  deleted: string[]
+  kept: string[]
+  problems?: string[]
+  closing: boolean
+}
+
 // --- Public data (step 9b; Go: figure.Public, catalog.PublicEntry) -----------
 //
 // The third kind of number (research/EXTERNAL_SOURCES.md, the display rule):

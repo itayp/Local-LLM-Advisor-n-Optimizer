@@ -88,3 +88,19 @@ func TestDarwinDisableWithoutEverEnablingIsNotAnError(t *testing.T) {
 		t.Fatalf("darwinDisable on a machine that never enabled it: %v, want nil", err)
 	}
 }
+
+func TestDarwinForgetRemovesTheLaunchAgent(t *testing.T) {
+	home := fakeHomeDir(t)
+	if err := darwinEnable(home, Target{ExecPath: "/Applications/x.app/advisor"}); err != nil {
+		t.Fatal(err)
+	}
+	if removed, err := darwinForget(home); err != nil || !removed {
+		t.Fatalf("darwinForget = %v, %v", removed, err)
+	}
+	if enabled, _ := darwinEnabled(home); enabled {
+		t.Error("the LaunchAgent is still there")
+	}
+	if removed, err := darwinForget(home); err != nil || removed {
+		t.Errorf("a second forget = %v, %v", removed, err)
+	}
+}

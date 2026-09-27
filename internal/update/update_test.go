@@ -25,7 +25,7 @@ func serve(t *testing.T, status int, body string) *httptest.Server {
 }
 
 func TestCheck_NewerReleaseAvailable(t *testing.T) {
-	srv := serve(t, http.StatusOK, `{"tag_name":"v0.4.0","html_url":"https://example.com/releases/v0.4.0"}`)
+	srv := serve(t, http.StatusOK, `{"tag_name":"v0.4.0","html_url":"`+ReleasePagePrefix+`tag/v0.4.0"}`)
 	info := checkURL(context.Background(), srv.Client(), srv.URL, "v0.3.1")
 	if !info.Checked {
 		t.Fatalf("Checked = false, err %q", info.Error)
@@ -33,7 +33,7 @@ func TestCheck_NewerReleaseAvailable(t *testing.T) {
 	if info.Latest != "v0.4.0" {
 		t.Errorf("Latest = %q", info.Latest)
 	}
-	if info.URL != "https://example.com/releases/v0.4.0" {
+	if info.URL != ReleasePagePrefix+"tag/v0.4.0" {
 		t.Errorf("URL = %q", info.URL)
 	}
 	if !info.UpdateAvailable {
@@ -148,5 +148,33 @@ func TestIsNewer(t *testing.T) {
 		if newer != c.newer || ok != c.ok {
 			t.Errorf("isNewer(%q, %q) = (%v, %v), want (%v, %v)", c.current, c.latest, newer, ok, c.newer, c.ok)
 		}
+	}
+}
+
+// The link shown to the person is the feed's own release page only when it
+// is this project's: an answer that names any other page (a compromised or
+// impersonated feed, a javascript: URL) falls back to DownloadURL.
+func TestCheck_ALinkElsewhereIsNotShown(t *testing.T) {
+	for _, html := range []string{
+		"https://example.com/releases/v0.4.0",
+		"javascript:alert(1)",
+		"http://github.com/itayp/-Local-LLM-Advisor-n-Optimizer/releases/tag/v0.4.0",
+		"https://github.com/someone-else/fork/releases/tag/v0.4.0",
+	} {
+		srv := serve(t, http.StatusOK, `{"tag_name":"v0.4.0","html_url":"`+html+`"}`)
+		info := checkURL(context.Background(), srv.Client(), srv.URL, "v0.3.1")
+		if info.URL != DownloadURL {
+			t.Errorf("html_url %q: URL = %q, want %q", html, info.URL, DownloadURL)
+		}
+	}
+}
+
+// With no client of its own, Check uses the egress client, which cannot
+// reach anything but this project's releases on api.github.com.
+func TestCheck_DefaultClientIsTheAllowListedOne(t *testing.T) {
+	srv := serve(t, http.StatusOK, `{"tag_name":"v9.9.9"}`)
+	info := checkURL(context.Background(), nil, srv.URL, "v0.3.1")
+	if info.Checked {
+		t.Fatal("the default client reached a test server that is not on the allow-list")
 	}
 }

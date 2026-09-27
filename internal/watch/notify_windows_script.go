@@ -46,20 +46,27 @@ func balloonScript(note Notification) string {
 		"$n.Dispose()"
 }
 
-// psString quotes s as a PowerShell single-quoted string literal (the only
-// escape a single-quoted literal needs is doubling an embedded quote).
+// psString quotes s as a PowerShell single-quoted string literal. The only
+// escape such a literal has is doubling a quote — but PowerShell reads four
+// characters as a single quote, not one: ' and the typographic ‘ ’ ‚ ‛
+// (its tokenizer's IsSingleQuote). The app's own copy uses ’ ("advisor’s"),
+// and a lone one would end the literal and run the rest of the text as
+// PowerShell. Each of the four is doubled.
 func psString(s string) string {
-	out := make([]byte, 0, len(s)+2)
-	out = append(out, '\'')
-	for i := 0; i < len(s); i++ {
-		if s[i] == '\'' {
-			out = append(out, '\'', '\'')
-			continue
+	var b strings.Builder
+	b.Grow(len(s) + 2)
+	b.WriteByte('\'')
+	for _, r := range s {
+		switch r {
+		case '\'', '\u2018', '\u2019', '\u201A', '\u201B':
+			b.WriteRune(r)
+			b.WriteRune(r)
+		default:
+			b.WriteRune(r)
 		}
-		out = append(out, s[i])
 	}
-	out = append(out, '\'')
-	return string(out)
+	b.WriteByte('\'')
+	return b.String()
 }
 
 // xmlEscape escapes s for use as XML character data (toastXML above) —

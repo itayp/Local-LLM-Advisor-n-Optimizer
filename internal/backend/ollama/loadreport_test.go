@@ -149,13 +149,20 @@ func TestGenerateRawNoTruncateAndCachedCount(t *testing.T) {
 	defer srv.Close()
 	b := newTestBackend(t, srv)
 	var events []backend.GenerateEvent
-	err := b.Generate(context.Background(), backend.GenerateRequest{Model: "m", Prompt: "1.\n\nText", Raw: true, NoTruncate: true, KeepAlive: "5m",
-		Options: map[string]any{"num_ctx": 4096}}, func(e backend.GenerateEvent) error { events = append(events, e); return nil })
+	prompt, opts := suitePrompt(t, 1, 4096)
+	err := b.Generate(context.Background(), backend.GenerateRequest{Model: "m", Prompt: prompt, Raw: true, NoTruncate: true, KeepAlive: "5m",
+		Options: opts}, func(e backend.GenerateEvent) error { events = append(events, e); return nil })
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got["raw"] != true || got["truncate"] != false || got["shift"] != false || got["keep_alive"] != "5m" {
 		t.Fatalf("request body %v", got)
+	}
+	if got["prompt"] != prompt.Text() || got["system"] != nil {
+		t.Fatalf("the request carried %q and system %v; the suite's prompt and nothing else must be sent", got["prompt"], got["system"])
+	}
+	if o, _ := got["options"].(map[string]any); o["num_ctx"] != float64(4096) || o["num_predict"] != float64(opts.NumPredict) {
+		t.Fatalf("options %v", got["options"])
 	}
 	if len(events) != 3 || events[0].Thinking != "hm" || events[1].Response != "The" {
 		t.Fatalf("events %+v", events)
@@ -170,7 +177,7 @@ func TestGenerateRawNoTruncateAndCachedCount(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]any{"done": true, "prompt_eval_count": 10, "eval_count": 5})
 	}))
 	defer srv2.Close()
-	_ = newTestBackend(t, srv2).Generate(context.Background(), backend.GenerateRequest{Model: "m", Prompt: "x"},
+	_ = newTestBackend(t, srv2).Generate(context.Background(), backend.GenerateRequest{Model: "m", Prompt: anyPrompt(t)},
 		func(e backend.GenerateEvent) error { last = e; return nil })
 	if last.PromptEvalCachedKnown {
 		t.Fatalf("not stated must stay unknown: %+v", last)
@@ -189,12 +196,12 @@ func TestGenerateRawNoTruncateAndCachedCount(t *testing.T) {
 		_, _ = w.Write([]byte(`{"error":"the prompt is longer than the context length currently available to the model"}`))
 	}))
 	defer srv3.Close()
-	err = newTestBackend(t, srv3).Generate(context.Background(), backend.GenerateRequest{Model: "m", Prompt: "x"}, nil)
+	err = newTestBackend(t, srv3).Generate(context.Background(), backend.GenerateRequest{Model: "m", Prompt: anyPrompt(t)}, nil)
 	var se *StatusError
 	if !errors.As(err, &se) || se.Status != http.StatusBadRequest || !strings.Contains(se.Message, "longer than the context") {
 		t.Fatalf("refusal: %v", err)
 	}
-	err = newTestBackend(t, srv3).Generate(context.Background(), backend.GenerateRequest{Model: "mid", Prompt: "x"}, nil)
+	err = newTestBackend(t, srv3).Generate(context.Background(), backend.GenerateRequest{Model: "mid", Prompt: anyPrompt(t)}, nil)
 	if !errors.As(err, &se) || !strings.Contains(se.Message, "unexpectedly stopped") {
 		t.Fatalf("mid-stream error: %v", err)
 	}

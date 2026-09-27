@@ -313,6 +313,7 @@ func (f *fixture) run(force bool) Report {
 	f.t.Helper()
 	u, _ := url.Parse(f.hub.srv.URL)
 	fe := NewFetcher("test-advisor/0", []string{u.Host})
+	fe.HTTP.Transport = http.DefaultTransport // the fakes are plain HTTP on this computer
 	fe.MinInterval = 0
 	fe.Sleep = func(context.Context, time.Duration) error { return nil }
 	rep, err := Run(context.Background(), Options{
@@ -691,6 +692,7 @@ func TestASlowSourceIsNotWaitedFor(t *testing.T) {
 		return false
 	}
 	fe := NewFetcher("test-advisor/0", []string{mustHost(t, f.hub.srv.URL)})
+	fe.HTTP.Transport = http.DefaultTransport // the fakes are plain HTTP on this computer
 	fe.MinInterval = 0
 	fe.Sleep = func(context.Context, time.Duration) error { return nil }
 	var parts []string
@@ -715,6 +717,7 @@ func TestASlowSourceIsNotWaitedFor(t *testing.T) {
 	f.clock = f.clock.Add(time.Minute)
 	f.hub.extra = nil
 	fe2 := NewFetcher("test-advisor/0", []string{mustHost(t, f.hub.srv.URL)})
+	fe2.HTTP.Transport = http.DefaultTransport // the fakes are plain HTTP on this computer
 	fe2.MinInterval = 0
 	rep, _ = Run(context.Background(), Options{Catalogue: f.cat, Config: f.cfg, Aliases: f.al, Store: f.st, Fetcher: fe2, Trigger: "test", Now: func() time.Time { return f.clock }})
 	if a := source(rep, SourceArena); a.Status != StatusRead || a.Stored == 0 {
@@ -997,6 +1000,7 @@ func TestFetcherStaysOnItsHosts(t *testing.T) {
 	defer home.Close()
 	u, _ := url.Parse(home.URL)
 	fe := NewFetcher("test-advisor/0", []string{u.Host})
+	fe.HTTP.Transport = http.DefaultTransport // the fakes are plain HTTP on this computer
 	var slept []time.Duration
 	fe.Sleep = func(_ context.Context, d time.Duration) error { slept = append(slept, d); return nil }
 	fe.MinInterval = 0

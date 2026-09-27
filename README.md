@@ -51,7 +51,7 @@ It's *not* built for someone who already hand-tunes GGUF quantizations, runs a f
 - **Chat with you.** You keep using whatever app you already chat in — Ollama's own app, Open WebUI, LM Studio, or anything else. This is the layer that helps you pick and tune what runs underneath it, not another chat window.
 - **Replace Ollama, llama.cpp, or LM Studio.** It drives Ollama today (more runtimes are on the roadmap); it isn't trying to reinvent any of them.
 - **Change anything on your machine without you clicking a button that says exactly what it's about to do** — "Download 5 GB," "Start Ollama," "Run a two-minute test." Nothing ever switches models automatically.
-- **Send anything off your machine**, beyond looking up model information from Hugging Face when you ask it to check for models. No prompt, no file, and no usage data ever leaves your computer — the app only listens on `127.0.0.1`, never your network.
+- **Send anything about you off your machine.** No prompt, no file, and no usage data ever leaves your computer, and the app only listens on `127.0.0.1`, never your network. It does fetch public information: the model list and published scores, Ollama's installer, and whether there's a newer version. [SECURITY.md](SECURITY.md) lists every request it makes.
 - **Treat weak hardware as a failure.** A laptop with no graphics card gets an honest, useful answer, not an error screen.
 
 ## What it's like to use
@@ -92,7 +92,7 @@ From there:
 - The **recommendation engine** applies rules over that data to choose and explain up to three candidates. No model is ever asked to make that call — this app doesn't use AI to do its own job.
 - The **benchmark harness** runs a fixed, versioned suite of prompts through an installed model, timing it with Ollama's own counters while sampling your machine's resources once a second, and stores everything needed to make one run genuinely comparable to the next.
 
-The server binds to `127.0.0.1` only — that isn't a setting, it's compiled in, and every request is checked to make sure of it. The only traffic that ever leaves your machine is a lookup to Hugging Face for model metadata; nothing you type, and nothing about how you use it, goes anywhere else.
+The server binds to `127.0.0.1` only. That isn't a setting, it's compiled in, and every request is checked to make sure of it. Outbound, the app may contact only the hosts listed in one file (`internal/egress/hosts.go`): Hugging Face and Epoch AI for model metadata and public scores, ollama.com and Ollama's GitHub releases for its installer (checked against Ollama's published checksum), and GitHub for "Check for updates". A test fails the build if any code reaches the network another way. Nothing you type, and nothing about how you use the app, goes anywhere. [SECURITY.md](SECURITY.md) explains all of this in plain language, including how to delete everything the app stored.
 
 For the full set of decisions and why they were made, see `ARCHITECTURE.md`. For the product rules and repo conventions, see `CLAUDE.md`.
 

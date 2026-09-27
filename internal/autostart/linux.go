@@ -99,3 +99,27 @@ func linuxDisable(ctx context.Context, run cmdRunner) error {
 	}
 	return nil
 }
+
+// linuxForget disables the unit without stopping it (no --now: the running
+// daemon is the unit's own process, and it is about to quit by itself),
+// removes the unit file this package wrote, and reloads systemd's view.
+// systemctl failing (no user session manager) does not stop the file's
+// removal.
+func linuxForget(ctx context.Context, homeDir func() (string, error), run cmdRunner) (bool, error) {
+	path, err := linuxUnitPath(homeDir)
+	if err != nil {
+		return false, err
+	}
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("autostart: %w", err)
+	}
+	_, _ = run.run(ctx, "systemctl", "--user", "disable", linuxUnitName)
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return false, fmt.Errorf("autostart: removing the systemd unit: %w", err)
+	}
+	_, _ = run.run(ctx, "systemctl", "--user", "daemon-reload")
+	return true, nil
+}

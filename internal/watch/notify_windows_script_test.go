@@ -13,6 +13,22 @@ func TestPSStringDoublesEmbeddedQuotes(t *testing.T) {
 	}
 }
 
+// PowerShell ends a single-quoted literal at any of four quote characters,
+// the typographic ones included; the copy uses ’. A title or body carrying
+// one must stay inside its literal.
+func TestPSStringDoublesEveryQuotePowerShellReads(t *testing.T) {
+	for in, want := range map[string]string{
+		"the advisor’s pick":     "'the advisor’’s pick'",
+		"‘quoted’":               "'‘‘quoted’’'",
+		"low‚and‛high":           "'low‚‚and‛‛high'",
+		"x’; Remove-Item C:\\ #": "'x’’; Remove-Item C:\\ #'",
+	} {
+		if got := psString(in); got != want {
+			t.Errorf("psString(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestXMLEscapeHandlesReservedCharacters(t *testing.T) {
 	got := xmlEscape(`<Model> & "friends" it's here`)
 	for _, bad := range []string{"<Model>", ` & `, `"friends"`} {

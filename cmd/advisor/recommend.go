@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"advisor/internal/egress"
 	"advisor/internal/figure"
 	"advisor/internal/recommend"
 	"advisor/internal/server"
@@ -48,7 +49,7 @@ func runRecommend(args []string, stdout, stderr io.Writer) int {
 	}
 	// The daemon only ever listens on the loopback address (product rule 7).
 	endpoint := "http://" + server.LoopbackHost + ":" + strconv.Itoa(*port) + "/api/recommend?" + q.Encode()
-	client := &http.Client{Timeout: 3 * time.Minute} // the first request waits for hardware detection
+	client := egress.Local(3 * time.Minute) // this computer only; the first request waits for hardware detection
 	resp, err := client.Get(endpoint)
 	if err != nil {
 		fmt.Fprintf(stderr, "advisor recommend: no daemon answered on port %d (start `advisor` first): %v\n", *port, err)

@@ -8,3 +8,4 @@ package autostart
 func windowsEnabled(t Target) (bool, error) { return false, errUnsupported }
 func windowsEnable(t Target) error          { return errUnsupported }
 func windowsDisable() error                 { return errUnsupported }
+func windowsForget() (bool, error)          { return false, errUnsupported }

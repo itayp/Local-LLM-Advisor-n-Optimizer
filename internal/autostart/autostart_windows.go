@@ -58,3 +58,4 @@ func (realWindowsRegistry) deleteRunValue(name string) error {
 func windowsEnabled(t Target) (bool, error) { return windowsEnabledWith(realWindowsRegistry{}) }
 func windowsEnable(t Target) error          { return windowsEnableWith(realWindowsRegistry{}, t) }
 func windowsDisable() error                 { return windowsDisableWith(realWindowsRegistry{}) }
+func windowsForget() (bool, error)          { return windowsForgetWith(realWindowsRegistry{}) }

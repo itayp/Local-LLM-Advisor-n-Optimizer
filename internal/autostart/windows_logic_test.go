@@ -85,3 +85,19 @@ func TestWindowsDisableWithWithoutEverEnablingIsNotAnError(t *testing.T) {
 		t.Fatalf("windowsDisableWith on a never-enabled entry: %v, want nil", err)
 	}
 }
+
+func TestWindowsForgetRemovesTheRunValue(t *testing.T) {
+	reg := newFakeWindowsRegistry()
+	if err := windowsEnableWith(reg, Target{ExecPath: `C:\Program Files\Advisor\advisor.exe`}); err != nil {
+		t.Fatal(err)
+	}
+	if removed, err := windowsForgetWith(reg); err != nil || !removed {
+		t.Fatalf("windowsForgetWith = %v, %v", removed, err)
+	}
+	if ok, _ := windowsEnabledWith(reg); ok {
+		t.Error("the Run value is still there")
+	}
+	if removed, err := windowsForgetWith(reg); err != nil || removed {
+		t.Errorf("a second forget = %v, %v", removed, err)
+	}
+}

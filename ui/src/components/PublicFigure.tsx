@@ -24,8 +24,8 @@ export function PublicFigure({ entry, advanced }: { entry: PublicEntry; advanced
       <p className="public-figure__position">{entry.position}</p>
       <p className="public-figure__origin">
         {c.tests(entry.tests, entry.provenance_words)} {c.publishedBy(o.publisher, formatDay(o.date))}{' '}
-        {o.url ? (
-          <a href={o.url} target="_blank" rel="noreferrer">
+        {isHttps(o.url) ? (
+          <a href={o.url} target="_blank" rel="noreferrer noopener">
             {c.readAtSource}
           </a>
         ) : null}
@@ -67,4 +67,18 @@ export function PublicLine({ entry }: { entry?: PublicEntry }) {
       <PublicFigure entry={entry} advanced={false} />
     </section>
   )
+}
+
+/**
+ * A public value's link is someone else's words: it is shown only when it
+ * is an https address (the daemon keeps only those, too — D-67). A
+ * javascript: or other-scheme link is never rendered as a link.
+ */
+function isHttps(url: string | undefined): url is string {
+  if (!url) return false
+  try {
+    return new URL(url).protocol === 'https:'
+  } catch {
+    return false
+  }
 }

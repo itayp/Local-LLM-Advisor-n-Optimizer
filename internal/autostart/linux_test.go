@@ -133,3 +133,33 @@ func TestLinuxDisableCallsSystemctl(t *testing.T) {
 		t.Errorf("calls = %v, want [%v]", run.calls, want)
 	}
 }
+
+// Forget (D-68) disables without --now — the running daemon is the unit's
+// own process and quits by itself — and removes the file Enable wrote.
+func TestLinuxForgetRemovesTheUnitWithoutStoppingIt(t *testing.T) {
+	home := fakeHomeDir(t)
+	run := &fakeCmdRunner{answers: map[string]string{}}
+	if err := linuxEnable(context.Background(), home, run, Target{Name: "x", ExecPath: "/a/advisor"}); err != nil {
+		t.Fatal(err)
+	}
+	run.calls = nil
+	removed, err := linuxForget(context.Background(), home, run)
+	if err != nil || !removed {
+		t.Fatalf("linuxForget = %v, %v", removed, err)
+	}
+	dir, _ := home()
+	if _, err := os.Stat(filepath.Join(dir, ".config", "systemd", "user", linuxUnitName)); !os.IsNotExist(err) {
+		t.Errorf("the unit file is still there: %v", err)
+	}
+	for _, c := range run.calls {
+		for _, a := range c {
+			if a == "--now" {
+				t.Errorf("forget ran %v, which would stop the running daemon", c)
+			}
+		}
+	}
+	// Nothing to forget is not an error.
+	if removed, err := linuxForget(context.Background(), home, run); err != nil || removed {
+		t.Errorf("a second forget = %v, %v", removed, err)
+	}
+}

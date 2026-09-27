@@ -79,9 +79,39 @@ func DefaultPath() (string, error) {
 
 // Open opens (creating if needed) the database at path, applies pending
 // migrations, and returns the Store. The parent directory is created.
+//
+// The folder and the database are this user's alone (0700 and 0600, D-68):
+// what the advisor knows about the computer — its name, its hardware, the
+// models on it, every test — is nobody else's to read on a shared
+// machine. A folder or file an older build created more open is tightened
+// here. (Windows gives %LOCALAPPDATA% to its user already; the modes are
+// what Go can say there, and change little.)
 func Open(ctx context.Context, path string) (*Store, error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return nil, fmt.Errorf("store: creating %s: %w", filepath.Dir(path), err)
+	dir := filepath.Dir(path)
+	_, statErr := os.Stat(dir)
+	existed := statErr == nil
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return nil, fmt.Errorf("store: creating %s: %w", dir, err)
+	}
+	// The folder is tightened when it is the advisor's own — the default
+	// data folder, or one this call just made — never a folder a developer
+	// pointed -data-dir at that holds other things too.
+	if def, err := DefaultDataDir(); !existed || (err == nil && filepath.Clean(def) == filepath.Clean(dir)) {
+		if err := tighten(dir, 0o700); err != nil {
+			return nil, err
+		}
+	}
+	// Create the file with the right mode before SQLite opens it; SQLite
+	// gives its -wal and -shm files the database file's own mode.
+	if f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600); err != nil {
+		return nil, fmt.Errorf("store: creating %s: %w", path, err)
+	} else {
+		_ = f.Close()
+	}
+	for _, p := range DatabaseFiles(path) {
+		if err := tighten(p, 0o600); err != nil {
+			return nil, err
+		}
 	}
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
@@ -110,6 +140,32 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		return nil, err
 	}
 	return s, nil
+}
+
+// DatabaseFiles is every file SQLite keeps for the database at path: the
+// database itself and its write-ahead log, shared-memory index and rollback
+// journal. "Delete everything" (D-68) removes exactly these.
+func DatabaseFiles(path string) []string {
+	return []string{path, path + "-wal", path + "-shm", path + "-journal"}
+}
+
+// tighten removes group and other permissions from path when it exists and
+// has any.
+func tighten(path string, mode os.FileMode) error {
+	st, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("store: %w", err)
+	}
+	if runtime.GOOS == "windows" || st.Mode().Perm()&^mode == 0 {
+		return nil
+	}
+	if err := os.Chmod(path, mode); err != nil {
+		return fmt.Errorf("store: making %s private: %w", path, err)
+	}
+	return nil
 }
 
 // DB exposes the handle for the packages that own tables. Step 2+ add

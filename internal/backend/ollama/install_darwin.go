@@ -5,7 +5,6 @@ package ollama
 import (
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 
@@ -35,27 +34,26 @@ func (b *Backend) findBinary() (string, bool) {
 	return "", false
 }
 
-// installURL is where osInstall downloads from, and what InstallSize
+// installFile is the file osInstall downloads, and what InstallSize
 // (install.go) asks about before the button is ever clicked (product rule 5).
-func (b *Backend) installURL() (string, error) {
-	return "https://ollama.com/download/Ollama.dmg", nil
+func (b *Backend) installFile() (string, error) {
+	return "Ollama.dmg", nil
 }
 
-// osInstall downloads Ollama.dmg and opens it. macOS installers are not run
-// silently: product rule 5 puts the explanation on the button before this
-// is ever called, and from here the user still drags Ollama into
+// osInstall downloads Ollama.dmg, checks it against the checksum Ollama
+// published for it (download.go), and opens it. macOS installers are not
+// run silently: product rule 5 puts the explanation on the button before
+// this is ever called, and from here the user still drags Ollama into
 // Applications and opens it themselves, same as if they had downloaded it
-// by hand. Detect() reports the result once they do.
+// by hand — and macOS checks Ollama's own signature when they do. Detect()
+// reports the result once they do.
 func (b *Backend) osInstall(ctx context.Context, progress func(backend.InstallProgress)) error {
-	url, err := b.installURL()
+	file, err := b.installFile()
 	if err != nil {
 		return err
 	}
-	dest := filepath.Join(os.TempDir(), "Ollama.dmg")
-	if progress != nil {
-		progress(backend.InstallProgress{Status: "downloading Ollama for macOS"})
-	}
-	if _, err := downloadFile(ctx, url, dest, progress); err != nil {
+	dest, _, err := b.downloader().download(ctx, file, progress)
+	if err != nil {
 		return err
 	}
 	if progress != nil {

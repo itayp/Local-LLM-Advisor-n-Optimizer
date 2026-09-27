@@ -1,6 +1,9 @@
 // Package ollama drives Ollama over its local HTTP API
-// (http://127.0.0.1:11434 by default; OLLAMA_HOST overrides). It is the
-// only backend.Backend implementation in the MVP (ARCHITECTURE.md D-3).
+// (http://127.0.0.1:11434 by default; OLLAMA_HOST overrides when it names
+// this computer, and is ignored with a sentence when it names another —
+// D-65). It is the only backend.Backend implementation in the MVP
+// (ARCHITECTURE.md D-3). Every request it makes to Ollama goes through
+// egress.Local, which dials loopback addresses only.
 //
 // Layout:
 //
@@ -22,12 +25,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"advisor/internal/backend"
+	"advisor/internal/egress"
+	"advisor/internal/suite"
 )
 
 func init() {
@@ -54,6 +60,10 @@ type Backend struct {
 	// to be this Ollama process's log, not possibly a stale one from a
 	// previous run.
 	supervisedLog string
+
+	// newDownloader, when set, replaces download.go's network side (tests
+	// point it at a fake release server).
+	newDownloader func() *downloader
 }
 
 // New builds the Ollama backend. It reads OLLAMA_HOST (and other
@@ -65,17 +75,60 @@ func New() *Backend {
 
 func (b *Backend) Name() string { return Name }
 
-// host is the base URL of Ollama's API: OLLAMA_HOST if set (a scheme is
-// added if it has none), else the documented default.
+// defaultHost is Ollama's documented default address.
+const defaultHost = "http://127.0.0.1:11434"
+
+// host is the base URL of Ollama's API on this computer.
 func (b *Backend) host() string {
-	h := strings.TrimSpace(b.env.getenv("OLLAMA_HOST"))
-	if h == "" {
-		return "http://127.0.0.1:11434"
+	h, _ := b.resolveHost()
+	return h
+}
+
+// resolveHost reads OLLAMA_HOST the way Ollama itself does (a scheme, a
+// host and a port, each optional: "0.0.0.0", ":11500", "localhost:11434",
+// "http://127.0.0.1:11434") and honours it when it names this computer — a
+// loopback address or "localhost"; 0.0.0.0 and :: ("every address", which
+// is this computer to a client) become 127.0.0.1. One that names another
+// computer is not used, and note says so in words: the advisor measures
+// and recommends for this machine, and sends nothing to any other
+// (product rule 7, ARCHITECTURE.md D-65). The HTTP client is
+// egress.Local, which would refuse another computer at the socket anyway;
+// this is where the refusal becomes a sentence instead of an error.
+func (b *Backend) resolveHost() (base, note string) {
+	raw := strings.TrimSpace(b.env.getenv("OLLAMA_HOST"))
+	if raw == "" {
+		return defaultHost, ""
 	}
-	if !strings.HasPrefix(h, "http://") && !strings.HasPrefix(h, "https://") {
-		h = "http://" + h
+	elsewhere := func() (string, string) {
+		return defaultHost, "OLLAMA_HOST is set to " + raw + ", which is not this computer. The advisor works only with Ollama on this computer, so it looked at " + defaultHost + " instead."
 	}
-	return strings.TrimRight(h, "/")
+	scheme, rest := "http", raw
+	if i := strings.Index(rest, "://"); i >= 0 {
+		scheme, rest = strings.ToLower(rest[:i]), rest[i+3:]
+	}
+	if scheme != "http" && scheme != "https" {
+		return elsewhere()
+	}
+	if i := strings.IndexAny(rest, "/?#"); i >= 0 {
+		rest = rest[:i]
+	}
+	host, port := rest, "11434"
+	if h, p, err := net.SplitHostPort(rest); err == nil {
+		host, port = h, p
+	} else if strings.HasPrefix(rest, "[") && strings.HasSuffix(rest, "]") {
+		host = rest[1 : len(rest)-1]
+	}
+	if n, err := strconv.Atoi(port); err != nil || n < 1 || n > 65535 {
+		return elsewhere()
+	}
+	switch host {
+	case "", "0.0.0.0", "::":
+		host = "127.0.0.1"
+	}
+	if !egress.IsLoopbackHost(host) {
+		return elsewhere()
+	}
+	return scheme + "://" + net.JoinHostPort(host, port), ""
 }
 
 func (b *Backend) client(timeout time.Duration) *httpClient {
@@ -91,10 +144,11 @@ func (b *Backend) Detect(ctx context.Context) (backend.Status, error) {
 	defer cancel()
 
 	env := b.captureEnv()
+	host, note := b.resolveHost()
 
 	c := b.client(detectTimeout)
 	if v, err := c.version(ctx); err == nil {
-		status := backend.Status{State: backend.StateRunning, Version: v, Host: b.host(), Env: env}
+		status := backend.Status{State: backend.StateRunning, Version: v, Host: host, Env: env, Detail: note}
 		// Best-effort: what is actually loaded right now, and on what path.
 		// Never fails Detect — a load already happened or it didn't; this
 		// only decides whether RuntimePaths says something about it.
@@ -104,7 +158,7 @@ func (b *Backend) Detect(ctx context.Context) (backend.Status, error) {
 				status.RuntimePaths = paths
 			}
 			if detail != "" {
-				status.Detail = detail
+				status.Detail = joinDetail(detail, note)
 			}
 		}
 		return status, nil
@@ -112,14 +166,26 @@ func (b *Backend) Detect(ctx context.Context) (backend.Status, error) {
 
 	path, ok := b.findBinary()
 	if !ok {
-		return backend.Status{State: backend.StateNotInstalled, Env: env}, nil
+		return backend.Status{State: backend.StateNotInstalled, Env: env, Detail: note}, nil
 	}
 	return backend.Status{
 		State:  backend.StateInstalledNotRunning,
-		Host:   b.host(),
-		Detail: "found at " + path,
+		Host:   host,
+		Detail: joinDetail("found at "+path, note),
 		Env:    env,
 	}, nil
+}
+
+// joinDetail puts two sentences for the UI together, either of which may be
+// empty.
+func joinDetail(a, b string) string {
+	switch {
+	case a == "":
+		return b
+	case b == "":
+		return a
+	}
+	return a + ". " + b
 }
 
 // Models lists what /api/tags reports: every model Ollama has downloaded,
@@ -228,9 +294,15 @@ func (b *Backend) Generate(ctx context.Context, req backend.GenerateRequest, onE
 	if strings.TrimSpace(req.Model) == "" {
 		return errors.New("ollama: Generate: Model is required")
 	}
+	// A suite.Prompt is the only text that can reach here (D-65); its zero
+	// value is empty, and an empty generate call is a load, not a request.
+	prompt := req.Prompt.Text()
+	if prompt == "" {
+		return errors.New("ollama: Generate: the prompt is empty")
+	}
 	c := b.client(0)
-	o := genOptions{system: req.System, keepAlive: req.KeepAlive, options: req.Options, raw: req.Raw, noTruncate: req.NoTruncate}
-	return c.generate(ctx, req.Model, req.Prompt, o, func(l genLine) error {
+	o := genOptions{keepAlive: req.KeepAlive, options: optionsMap(req.Options), raw: req.Raw, noTruncate: req.NoTruncate}
+	return c.generate(ctx, req.Model, prompt, o, func(l genLine) error {
 		if onEvent == nil {
 			return nil
 		}
@@ -251,6 +323,17 @@ func (b *Backend) Generate(ctx context.Context, req backend.GenerateRequest, onE
 		}
 		return onEvent(ev)
 	})
+}
+
+// optionsMap is the suite's options in the names Ollama's "options" object
+// uses.
+func optionsMap(o suite.Options) map[string]any {
+	return map[string]any{
+		"temperature": o.Temperature,
+		"seed":        o.Seed,
+		"num_predict": o.NumPredict,
+		"num_ctx":     o.NumCtx,
+	}
 }
 
 // Unload asks Ollama to free a model's memory now: a generate call with

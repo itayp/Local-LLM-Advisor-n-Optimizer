@@ -110,7 +110,7 @@ func (f *fakeBackend) Generate(ctx context.Context, req backend.GenerateRequest,
 	}
 	if !present {
 		load = 1500 * time.Millisecond
-		ctxLen, _ := req.Options["num_ctx"].(int)
+		ctxLen := req.Options.NumCtx
 		f.loaded = append(f.loaded, backend.Loaded{Name: req.Model, SizeBytes: f.sizeBytes, SizeVRAMBytes: f.sizeVRAM, ContextLength: ctxLen})
 	}
 	block, started := f.block, f.started
@@ -125,7 +125,7 @@ func (f *fakeBackend) Generate(ctx context.Context, req backend.GenerateRequest,
 	if !req.Raw || !req.NoTruncate {
 		return errors.New("benchmark requests must be raw and must not be truncated")
 	}
-	words := len(strings.Fields(req.Prompt))
+	words := len(strings.Fields(req.Prompt.Text()))
 	tokens := int(float64(words)*1.2) + 1
 	if f.tooLongAbove > 0 && tokens > f.tooLongAbove {
 		return errors.New("ollama: generate: 400 Bad Request: the prompt is longer than the context length currently available to the model")
@@ -300,9 +300,9 @@ func TestARunMeasuresEveryPromptAndStoresTheWholeContext(t *testing.T) {
 		t.Fatalf("%d requests", len(r.b.requests))
 	}
 	for i, req := range r.b.requests {
-		if !strings.HasPrefix(req.Prompt, strconv.Itoa(i)+".\n\n") || req.Options["num_ctx"] != 8192 || req.Options["temperature"] != float64(0) ||
-			req.Options["num_predict"] != 256 || req.Options["seed"] != 42 || req.KeepAlive != "5m" {
-			t.Fatalf("request %d: %q… %v", i, req.Prompt[:10], req.Options)
+		if !strings.HasPrefix(req.Prompt.Text(), strconv.Itoa(i)+".\n\n") || req.Options.NumCtx != 8192 || req.Options.Temperature != 0 ||
+			req.Options.NumPredict != 256 || req.Options.Seed != 42 || req.KeepAlive != "5m" {
+			t.Fatalf("request %d: %q… %+v", i, req.Prompt.Text()[:10], req.Options)
 		}
 	}
 	head := run.Results[0]

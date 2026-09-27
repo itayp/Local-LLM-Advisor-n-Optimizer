@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"net/http"
-	"time"
 
 	"advisor/internal/update"
 	"advisor/internal/version"
@@ -16,10 +15,6 @@ import (
 // data leaves the machine") is kept by never running it on a timer and by
 // the request itself carrying nothing about the user or this computer —
 // see internal/update's own doc comment and ARCHITECTURE.md D-62.
-
-// updateHTTPTimeout bounds one check; a person is watching a button, not
-// waiting on a background job.
-const updateHTTPTimeout = 8 * time.Second
 
 // handleUpdateCheck answers with update.Info as-is: no numeric fields, so
 // nothing here needs a figure.* wrapper (product rule 4 only concerns
@@ -36,6 +31,5 @@ func (s *Server) handleUpdateCheck(w http.ResponseWriter, r *http.Request) {
 // with a fake so they never touch the network (the same seam style as
 // s.open and s.backendList).
 func defaultCheckUpdate(ctx context.Context, current string) update.Info {
-	client := &http.Client{Timeout: updateHTTPTimeout}
-	return update.Check(ctx, client, current)
+	return update.Check(ctx, nil, current) // nil: the egress client for egress.UpdateCheck
 }

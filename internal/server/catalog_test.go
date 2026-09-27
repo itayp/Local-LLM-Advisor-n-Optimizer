@@ -92,6 +92,7 @@ func newCatalogTestServer(t *testing.T, backends ...backend.Backend) (*Server, *
 	srv.cat.newClient = func() *hf.Client {
 		c := hf.New("advisor-test")
 		c.BaseURL, c.MinInterval = hub.URL, 0
+		c.HTTP.Transport = http.DefaultTransport // the fake hub is plain HTTP on this computer
 		c.Sleep = func(ctx context.Context, d time.Duration) error { return ctx.Err() }
 		return c
 	}

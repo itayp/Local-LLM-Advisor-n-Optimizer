@@ -15,6 +15,7 @@ import (
 	"advisor/internal/figure"
 	"advisor/internal/hardware"
 	"advisor/internal/store"
+	"advisor/internal/suite"
 	"advisor/internal/version"
 )
 
@@ -130,8 +131,8 @@ func (h *Harness) Start(ctx context.Context, t Target, req Request) (Run, error)
 			Model: p.installed.Name, ModelDigest: p.installed.Digest, Quantization: p.installed.Quantization,
 			WeightsBytes: p.installed.SizeBytes, CatalogFileID: p.facts.CatalogFileID, CatalogModelID: p.row.CatalogModelID,
 			NumCtx: p.plan.NumCtx, KVCacheType: "unknown",
-			SuiteVersion: h.suite.Version, SuiteDigest: h.suite.Digest(), CompletionTokens: h.suite.CompletionTokens,
-			Repeats: h.suite.Repeats, DaemonVersion: version.Version,
+			SuiteVersion: h.suite.Version(), SuiteDigest: h.suite.Digest(), CompletionTokens: h.suite.CompletionTokens(),
+			Repeats: h.suite.Repeats(), DaemonVersion: version.Version,
 		},
 	}
 	if p.plan.Refusal != "" {
@@ -345,7 +346,7 @@ func (h *Harness) execute(ctx context.Context, a *activeRun, p *prepared) {
 	}
 	first := p.prompts[0]
 	n := 0
-	for i := 0; i < h.suite.Warmups; i++ {
+	for i := 0; i < h.suite.Warmups(); i++ {
 		h.progress(s, PhaseLoading, fmt.Sprintf("Loading %s and warming it up", model))
 		t, err := h.request(ctx, b, model, h.suite.Request(first, n), s.run.Config.NumCtx)
 		n++
@@ -379,15 +380,15 @@ func (h *Harness) execute(ctx context.Context, a *activeRun, p *prepared) {
 			continue
 		}
 		var timings []Timing
-		for r := 1; r <= h.suite.Repeats; r++ {
-			h.progress(s, PhaseMeasuring, fmt.Sprintf("Timing the %s-token prompt, %d of %d", commas(spec.Tokens), r, h.suite.Repeats))
+		for r := 1; r <= h.suite.Repeats(); r++ {
+			h.progress(s, PhaseMeasuring, fmt.Sprintf("Timing the %s-token prompt, %d of %d", commas(spec.Tokens), r, h.suite.Repeats()))
 			t, err := h.request(ctx, b, model, h.suite.Request(spec, n), s.run.Config.NumCtx)
 			n++
 			if err != nil {
 				if ctx.Err() == nil && tooLong(err) {
 					s.run.Skipped = append(s.run.Skipped, Skipped{Prompt: spec.ID,
 						Why: "the runtime refused it as longer than the context it has: " + errText(err)})
-					s.step += h.suite.Repeats - r + 1
+					s.step += h.suite.Repeats() - r + 1
 					timings = nil
 					break
 				}
@@ -402,7 +403,7 @@ func (h *Harness) execute(ctx context.Context, a *activeRun, p *prepared) {
 		}
 		// A prompt whose answers were all too short to time still timed its
 		// reading: it stays, with its answering speed absent and why.
-		s.run.Results = append(s.run.Results, summarise(spec.ID, timings, h.suite.CompletionTokens, h.cfg))
+		s.run.Results = append(s.run.Results, summarise(spec.ID, timings, h.suite.CompletionTokens(), h.cfg))
 		h.headline(s)
 		h.save(ctx, s)
 	}
@@ -417,7 +418,7 @@ func (h *Harness) execute(ctx context.Context, a *activeRun, p *prepared) {
 
 // request sends one prompt and times it: the runtime's own counters, and
 // the time to the first token as the client saw it.
-func (h *Harness) request(ctx context.Context, b backend.Backend, model, prompt string, numCtx int) (Timing, error) {
+func (h *Harness) request(ctx context.Context, b backend.Backend, model string, prompt suite.Prompt, numCtx int) (Timing, error) {
 	var t Timing
 	var final *backend.GenerateEvent
 	start := h.now()
@@ -568,12 +569,12 @@ func (h *Harness) checkFits(s *runState) {
 	}
 	for _, spec := range s.p.prompts {
 		predicted := int(math.Ceil(s.tpw * float64(h.suite.Words(spec, 1))))
-		need := predicted + h.suite.CompletionTokens + h.cfg.ContextMargin
+		need := predicted + h.suite.CompletionTokens() + h.cfg.ContextMargin
 		if need > ctxTokens && !skipped(s.run.Skipped, spec.ID) {
 			s.run.Skipped = append(s.run.Skipped, Skipped{Prompt: spec.ID, Why: fmt.Sprintf(
 				"this model's tokenizer makes it about %s tokens, which with the answer does not fit the %s-token context the runtime is running",
 				commas(predicted), commas(ctxTokens))})
-			s.steps -= h.suite.Repeats
+			s.steps -= h.suite.Repeats()
 		}
 	}
 }

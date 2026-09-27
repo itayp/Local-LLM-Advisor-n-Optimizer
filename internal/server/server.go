@@ -112,6 +112,12 @@ type Server struct {
 	// HTTP client); tests set it to a fake so they never touch the
 	// network, the same seam style as open and backendList.
 	checkUpdate func(ctx context.Context, current string) update.Info
+
+	// forgetOS and shutdown are "delete everything"'s (deletedata.go): what
+	// the advisor registered with the OS outside its data folder, and how
+	// the daemon quits afterwards. Tests set both.
+	forgetOS forgetOSFunc
+	shutdown func()
 }
 
 // New builds a Server. Dependencies are added as parameters by the steps
@@ -201,6 +207,9 @@ func (s *Server) routes() {
 	// step 11): GET, not POST — read-only, nothing stored — but still a
 	// live network call, so it never runs on a timer (update.go, D-62).
 	s.api("GET /api/update/check", s.handleUpdateCheck)
+	// "Delete everything" (build-plan step 12, D-68): the database, the
+	// login item, what the runtime adapter wrote; then the daemon quits.
+	s.api("POST /api/data/delete", s.handleDataDelete)
 	// Anything else under /api/ is a JSON 404, never the SPA's index.html.
 	s.mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found", "no such API endpoint")
@@ -256,6 +265,8 @@ func (s *Server) Serve(ctx context.Context, l net.Listener) error {
 	srv := &http.Server{
 		Handler:           s.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
+		MaxHeaderBytes:    64 << 10,
+		IdleTimeout:       2 * time.Minute,
 		ErrorLog:          slog.NewLogLogger(s.log.Handler(), slog.LevelWarn),
 	}
 	errc := make(chan error, 1)
@@ -286,27 +297,63 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// hostCheck rejects requests whose Host header is not the loopback address
-// or "localhost". Binding to 127.0.0.1 keeps the network out; this keeps a
-// web page in the user's browser from reaching the daemon through DNS
-// rebinding (a hostname the attacker controls that resolves to 127.0.0.1).
-// Origin, when a browser sends one, must agree.
+// hostCheck is the daemon's front door (ARCHITECTURE.md D-12, tightened by
+// D-67). Binding to 127.0.0.1 keeps the network out; these checks keep a
+// web page in the person's own browser — any site they visit, or another
+// program's page on another port of this computer — from using the daemon
+// through the browser:
+//
+//  1. Host must be 127.0.0.1 or localhost (421 otherwise): a hostname an
+//     attacker controls that resolves to 127.0.0.1 (DNS rebinding) is
+//     refused.
+//  2. Origin, when a browser sends one (every POST, PUT and cross-origin
+//     request), must be exactly this daemon's own origin — "http://" and
+//     the Host the request was addressed to (403 otherwise). A page on
+//     another port is another origin; "null" is nobody's.
+//  3. Sec-Fetch-Site, which every current browser sends, must be
+//     same-origin or none on the API (403 otherwise), so a page elsewhere
+//     cannot reach it even with a request that carries no Origin — an
+//     image, a script tag, a plain link.
+//
+// There are no CORS headers anywhere: a cross-origin read is refused by
+// the browser, and a cross-origin write by 2 and 3. Programs on this
+// computer that are not browsers (the advisor's own CLI, curl) send
+// neither header and are answered — they could read the database file
+// directly anyway.
 func (s *Server) hostCheck(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		securityHeaders(w.Header(), r.URL.Path)
 		if !allowedHost(r.Host) {
 			s.log.Warn("rejected request with foreign Host header", "host", r.Host, "path", r.URL.Path)
 			writeError(w, http.StatusMisdirectedRequest, "bad_host",
 				"this daemon only answers requests addressed to 127.0.0.1 or localhost")
 			return
 		}
-		if origin := r.Header.Get("Origin"); origin != "" && !allowedOrigin(origin) {
-			s.log.Warn("rejected cross-origin request", "origin", origin, "path", r.URL.Path)
+		if origin, sent := r.Header["Origin"]; sent && (len(origin) != 1 || !sameOrigin(origin[0], r.Host)) {
+			s.log.Warn("rejected cross-origin request", "origin", strings.Join(origin, ","), "path", r.URL.Path)
 			writeError(w, http.StatusForbidden, "bad_origin", "cross-origin requests are not allowed")
 			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			switch site := r.Header.Get("Sec-Fetch-Site"); site {
+			case "", "same-origin", "none":
+			default:
+				s.log.Warn("rejected cross-site request", "sec_fetch_site", site, "path", r.URL.Path)
+				writeError(w, http.StatusForbidden, "bad_origin", "cross-site requests are not allowed")
+				return
+			}
+		}
+		if r.Body != nil && r.Method != http.MethodGet && r.Method != http.MethodHead {
+			// No request the UI makes is bigger than a few kilobytes;
+			// handlers bound their own reads tighter still.
+			r.Body = http.MaxBytesReader(w, r.Body, maxRequestBody)
 		}
 		next.ServeHTTP(w, r)
 	})
 }
+
+// maxRequestBody bounds every request body.
+const maxRequestBody = 1 << 20
 
 func allowedHost(host string) bool {
 	h := host
@@ -320,12 +367,38 @@ func allowedHost(host string) bool {
 	return h == LoopbackHost || h == "localhost"
 }
 
-func allowedOrigin(origin string) bool {
-	rest, ok := strings.CutPrefix(origin, "http://")
-	if !ok {
-		return false
+// sameOrigin reports whether origin is this daemon's own: the scheme it
+// serves (plain HTTP on loopback) and exactly the host and port the
+// request was addressed to — which the Host check has already confined to
+// this computer.
+func sameOrigin(origin, host string) bool {
+	return allowedHost(host) && origin == "http://"+host
+}
+
+// contentSecurityPolicy is the UI's: everything from this daemon and
+// nothing from anywhere else. connect-src 'self' is the browser's half of
+// "nothing the user typed is sent anywhere" (D-65): the page cannot fetch,
+// post or open a stream to any other address. frame-ancestors 'none' keeps
+// the app out of another site's frame, where its buttons ("Download 5 GB",
+// "Remove", "Delete everything") could be clicked by trickery. The built
+// UI has no inline script or style element; React sets styles through the
+// DOM, which a style-src of 'self' allows.
+const contentSecurityPolicy = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; " +
+	"font-src 'self'; connect-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'self'; " +
+	"frame-ancestors 'none'; object-src 'none'"
+
+// securityHeaders are set on every response, the API's and the UI's.
+func securityHeaders(h http.Header, path string) {
+	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("X-Frame-Options", "DENY")
+	h.Set("Referrer-Policy", "no-referrer")
+	h.Set("Cross-Origin-Opener-Policy", "same-origin")
+	h.Set("Cross-Origin-Resource-Policy", "same-origin")
+	if strings.HasPrefix(path, "/api/") {
+		h.Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+	} else {
+		h.Set("Content-Security-Policy", contentSecurityPolicy)
 	}
-	return allowedHost(rest)
 }
 
 // noStore keeps API responses out of caches.

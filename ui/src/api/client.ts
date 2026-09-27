@@ -9,6 +9,7 @@ import type {
   BenchRequest,
   BenchRun,
   ChatAppsResponse,
+  DataDeleteResponse,
   InstalledModelsResponse,
   CatalogRefreshReport,
   CatalogResponse,
@@ -206,6 +207,8 @@ export const api = {
   watchRun: (signal?: AbortSignal) => send<WatchReport>('POST', '/watch/run', signal),
   /** Settings' manual "Check for updates" button (build-plan step 11): one live look at the release feed, never on a timer. */
   checkUpdate: (signal?: AbortSignal) => get<UpdateCheckResponse>('/update/check', signal),
+  /** Delete everything the app stored (D-68); the daemon quits once it has answered. */
+  deleteEverything: (signal?: AbortSignal) => send<DataDeleteResponse>('POST', '/data/delete', signal, { confirm: true }),
 }
 
 /** How long a silent event stream is waited for before polling instead, and how often a poll asks. */

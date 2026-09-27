@@ -85,6 +85,25 @@ func Disable(ctx context.Context, t Target) error {
 	}
 }
 
+// Forget removes "start at login" entirely — the login entry and any file
+// this package wrote for it — without stopping the running process: it is
+// "delete everything"'s step (ARCHITECTURE.md D-68), which runs inside the
+// very process a login item would have started, and that process quits on
+// its own once it has answered. Forgetting an entry that was never made is
+// not an error; removed says whether there was one.
+func Forget(ctx context.Context) (removed bool, err error) {
+	switch runtime.GOOS {
+	case "darwin":
+		return darwinForget(os.UserHomeDir)
+	case "linux":
+		return linuxForget(ctx, os.UserHomeDir, realRunner{})
+	case "windows":
+		return windowsForget()
+	default:
+		return false, nil
+	}
+}
+
 // cmdRunner is the seam linux.go runs systemctl through; tests replace it
 // with a fake so nothing here ever shells out for real.
 type cmdRunner interface {
