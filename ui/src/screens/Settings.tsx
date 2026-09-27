@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
-import type { HardwareResponse, Health, NotifyMode, UpdateCheckResponse } from '../api/types'
+import type { DataDeleteResponse, HardwareResponse, Health, NotifyMode, UpdateCheckResponse } from '../api/types'
 import { formatBytes } from '../components/Figure'
 import { en } from '../copy/en'
-import { useSettings } from '../state/settings'
+import { forgetLocalSettings, useSettings } from '../state/settings'
 
 const c = en.screens.settings
 
@@ -13,9 +13,9 @@ const modeOrder: NotifyMode[] = ['on', 'quiet', 'never']
 /**
  * Settings (build-plan step 8): the Advanced toggle, where things live on
  * disk and a button that opens each (D-16), the version, the new-model
- * watch's own settings (build-plan step 10), and a stub section for the
- * one still to come (checking for updates, step 11) — written as what it
- * is, not left blank (CLAUDE.md: "empty states are written, not blank").
+ * watch's own settings (build-plan step 10), checking for updates (step
+ * 11), and "Your data" with the button that deletes everything the app
+ * stored (step 12, D-68).
  */
 export function Settings() {
   const { settings, setAdvanced, setWatch } = useSettings()
@@ -128,7 +128,105 @@ export function Settings() {
           </div>
         </dl>
       </div>
+
+      <div className="settings-section">
+        <h2>{c.dataTitle}</h2>
+        <p className="screen__note">{c.dataHelp}</p>
+        <DeleteEverything />
+      </div>
     </section>
+  )
+}
+
+/**
+ * "Delete everything" (build-plan step 12, ARCHITECTURE.md D-68): product
+ * rule 5's button that says what it does — a first click shows exactly
+ * what goes and what stays, a second one does it. The daemon quits once
+ * it has answered, so the answer is the last thing this page shows.
+ */
+function DeleteEverything() {
+  const [state, setState] = useState<'idle' | 'confirming' | 'deleting' | 'done' | 'failed'>('idle')
+  const [result, setResult] = useState<DataDeleteResponse | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const run = () => {
+    setState('deleting')
+    setError(null)
+    api
+      .deleteEverything()
+      .then((resp) => {
+        forgetLocalSettings()
+        setResult(resp)
+        setState('done')
+      })
+      .catch((err: unknown) => {
+        setState('failed')
+        setError(err instanceof Error ? err.message : String(err))
+      })
+  }
+
+  if (state === 'done' && result) {
+    return (
+      <div className="setting" role="status">
+        <p className="notice">{c.deleted}</p>
+        {result.kept.length > 0 ? (
+          <>
+            <p className="screen__note">{c.deletedKept}</p>
+            <ul>
+              {result.kept.map((k) => (
+                <li key={k}>{k}</li>
+              ))}
+            </ul>
+          </>
+        ) : null}
+        {result.problems && result.problems.length > 0 ? (
+          <>
+            <p className="notice notice--warning">{c.deleteProblems}</p>
+            <ul>
+              {result.problems.map((p) => (
+                <li key={p}>{p}</li>
+              ))}
+            </ul>
+          </>
+        ) : null}
+      </div>
+    )
+  }
+
+  if (state === 'idle' || state === 'failed') {
+    return (
+      <div className="setting">
+        <button type="button" className="button button--secondary" onClick={() => setState('confirming')}>
+          {c.deleteEverything}
+        </button>
+        {state === 'failed' ? (
+          <span className="notice notice--warning" role="alert">
+            {c.deleteFailed(error ?? '')}
+          </span>
+        ) : null}
+      </div>
+    )
+  }
+
+  return (
+    <div className="setting" role="group" aria-labelledby="delete-everything-title">
+      <p id="delete-everything-title" className="setting__label">
+        {c.deleteConfirmTitle}
+      </p>
+      <ul>
+        {c.deleteWhat.map((w) => (
+          <li key={w}>{w}</li>
+        ))}
+      </ul>
+      <p className="setting__help">{c.deleteKeeps}</p>
+      <p className="setting__help">{c.deleteCloses}</p>
+      <button type="button" className="button" disabled={state === 'deleting'} onClick={run}>
+        {state === 'deleting' ? c.deleting : c.deleteConfirm}
+      </button>{' '}
+      <button type="button" className="button button--secondary" disabled={state === 'deleting'} onClick={() => setState('idle')}>
+        {c.deleteCancel}
+      </button>
+    </div>
   )
 }
 

@@ -61,6 +61,18 @@ function load(): Settings {
   }
 }
 
+/**
+ * Forgets this browser's copy of the settings — "delete everything"
+ * (Settings, D-68) clears the daemon's copy, and this is the page's own.
+ */
+export function forgetLocalSettings() {
+  try {
+    globalThis.localStorage?.removeItem(storageKey)
+  } catch {
+    // storage blocked: there was nothing kept to forget
+  }
+}
+
 function save(s: Settings) {
   try {
     globalThis.localStorage?.setItem(storageKey, JSON.stringify(s))

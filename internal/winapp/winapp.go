@@ -30,3 +30,11 @@ const AUMID = "ItayPollak.LocalLLMAdvisor"
 func RegisterIdentity() error {
 	return registerIdentity()
 }
+
+// UnregisterIdentity removes what RegisterIdentity wrote to the registry
+// (the AUMID's display name under HKCU\Software\Classes\AppUserModelId) —
+// "delete everything"'s step (ARCHITECTURE.md D-68). removed says whether
+// there was anything; a no-op outside Windows.
+func UnregisterIdentity() (removed bool, err error) {
+	return unregisterIdentity()
+}

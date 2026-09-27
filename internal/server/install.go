@@ -73,6 +73,18 @@ func (t *installTracker) status(name string) InstallStatus {
 	return InstallStatus{Backend: name, Status: "idle"}
 }
 
+// anyRunning reports whether any install is in flight.
+func (t *installTracker) anyRunning() bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for _, st := range t.byName {
+		if st.Status == "running" {
+			return true
+		}
+	}
+	return false
+}
+
 // start runs fn in the background unless an install for name is already
 // running, in which case it returns the running status and false.
 func (t *installTracker) start(name string, fn func(ctx context.Context, update func(InstallStatus))) (InstallStatus, bool) {

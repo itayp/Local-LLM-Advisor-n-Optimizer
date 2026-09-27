@@ -283,6 +283,9 @@ func (f *authorFake) client(t *testing.T) *hf.Client {
 	t.Helper()
 	c := hf.New("advisor-test/0")
 	c.BaseURL = f.srv.URL
+	// The fake is plain HTTP on this computer; the daemon's transport
+	// (internal/egress) would refuse it, which is egress's own test.
+	c.HTTP.Transport = http.DefaultTransport
 	c.MinInterval = 0
 	c.Log = quiet()
 	c.Sleep = func(ctx context.Context, d time.Duration) error { return ctx.Err() }

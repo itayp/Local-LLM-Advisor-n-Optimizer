@@ -5,11 +5,11 @@
 // GitHub's own release feed, the same request anyone's browser would make
 // hitting the download page.
 //
-// PermittedHost is deliberately its own narrow allow-list, separate from
-// internal/catalog/external.PermittedHosts (the model/benchmark data path):
-// this package answers a different question, for a different button, and
-// mixing the two allow-lists would make neither one an honest audit of what
-// it actually guards. See ARCHITECTURE.md D-62.
+// The request goes through internal/egress's client for its own purpose
+// (egress.UpdateCheck), which can reach api.github.com's releases of this
+// project and nothing else — the host is a line in the one allow-list
+// (internal/egress/hosts.go, D-64), kept apart from the model-data hosts
+// by purpose, as D-62 wanted it apart.
 package update
 
 import (
@@ -21,11 +21,15 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"strings"
+	"time"
 
+	"advisor/internal/egress"
 	"advisor/internal/version"
 )
 
-// PermittedHost is the only host Check ever connects to.
+// PermittedHost is the only host Check ever connects to — enforced by the
+// egress client, whose allow-list names it for egress.UpdateCheck only.
 const PermittedHost = "api.github.com"
 
 // ReleasesURL is this project's GitHub "latest release" API endpoint.
@@ -37,6 +41,13 @@ const ReleasesURL = "https://" + PermittedHost + "/repos/itayp/-Local-LLM-Adviso
 // what Check finds — the release page itself. Which file to click for
 // their OS is INSTALL.md's job, not this package's.
 const DownloadURL = "https://github.com/itayp/-Local-LLM-Advisor-n-Optimizer/releases/latest"
+
+// ReleasePagePrefix is what a release page GitHub names must start with to
+// be shown as the download link.
+const ReleasePagePrefix = "https://github.com/itayp/-Local-LLM-Advisor-n-Optimizer/releases/"
+
+// DefaultTimeout bounds one check; a person is watching a button.
+const DefaultTimeout = 8 * time.Second
 
 // maxBody bounds how much of a (misbehaving or unexpected) answer this
 // package will read; GitHub's release JSON for this project is a few KB.
@@ -73,10 +84,10 @@ type release struct {
 }
 
 // Check makes one GET to ReleasesURL and compares its tag against current
-// (version.Version). client may be nil (http.DefaultClient is used); tests
-// pass one pointed at an httptest.Server. Check never retries — a person
-// just clicked a button and wants one honest answer, not a background
-// poller.
+// (version.Version). client may be nil (the egress client for
+// egress.UpdateCheck is used); tests pass one pointed at an
+// httptest.Server. Check never retries — a person just clicked a button and
+// wants one honest answer, not a background poller.
 func Check(ctx context.Context, client *http.Client, current string) Info {
 	return checkURL(ctx, client, ReleasesURL, current)
 }
@@ -86,7 +97,7 @@ func Check(ctx context.Context, client *http.Client, current string) Info {
 func checkURL(ctx context.Context, client *http.Client, url string, current string) Info {
 	info := Info{Current: current, URL: DownloadURL}
 	if client == nil {
-		client = http.DefaultClient
+		client = egress.Client(egress.UpdateCheck, DefaultTimeout)
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -137,7 +148,11 @@ func checkURL(ctx context.Context, client *http.Client, url string, current stri
 
 	info.Checked = true
 	info.Latest = rel.TagName
-	if rel.HTMLURL != "" {
+	// The link the Settings screen shows is the release page GitHub named,
+	// but only when it is this project's own release page: the answer is
+	// someone else's server's words, and a link the person clicks must not
+	// be able to point anywhere else.
+	if strings.HasPrefix(rel.HTMLURL, ReleasePagePrefix) {
 		info.URL = rel.HTMLURL
 	}
 	if newer, ok := isNewer(current, rel.TagName); ok {

@@ -10,5 +10,6 @@ import "context"
 // running (some window managers, a headless box) simply has nothing to
 // show; the run still succeeds and the watch log still has the line.
 func (n *osNotifier) Notify(ctx context.Context, note Notification) error {
-	return n.run(ctx, "notify-send", "--app-name=Advisor", note.Title, note.Body)
+	// "--" ends the options: a title or body that starts with "-" is text.
+	return n.run(ctx, "notify-send", "--app-name=Advisor", "--", note.Title, note.Body)
 }

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../App'
-import type { HardwareResponse, SettingsResponse, UpdateCheckResponse } from '../api/types'
+import type { DataDeleteResponse, HardwareResponse, SettingsResponse, UpdateCheckResponse } from '../api/types'
 import { en } from '../copy/en'
 
 const c = en.screens.settings
@@ -57,6 +57,7 @@ function serve(opts: {
   openDataFails?: string
   openModelsFails?: string
   update?: UpdateCheckResponse
+  deleteAnswer?: DataDeleteResponse | { status: number; message: string }
 }) {
   const calls: { url: string; method: string; body?: string }[] = []
   vi.stubGlobal(
@@ -77,6 +78,11 @@ function serve(opts: {
       if (url === '/api/settings/open-models-dir' && method === 'POST') {
         if (opts.openModelsFails) return json({ error: { code: 'open_failed', message: opts.openModelsFails } }, 500)
         return json({})
+      }
+      if (url === '/api/data/delete' && method === 'POST') {
+        const a = opts.deleteAnswer ?? { deleted: ['the database'], kept: ['the models you downloaded'], closing: true }
+        if ('status' in a) return json({ error: { code: 'busy', message: a.message } }, a.status)
+        return json(a)
       }
       if (url === '/api/update/check' && method === 'GET') {
         return json(opts.update ?? { current: '1.4.0', latest: '1.4.0', url: 'https://example.com/releases', update_available: false, checked: true })
@@ -229,5 +235,39 @@ describe('Settings', () => {
         calls.some((x) => x.url === '/api/settings' && x.method === 'PUT' && JSON.parse(x.body ?? '{}').watch?.enabled === false),
       ).toBe(true),
     )
+  })
+
+  it('deletes everything only after saying what goes and what stays, then forgets its own copy too', async () => {
+    const user = userEvent.setup()
+    const calls = serve({})
+    localStorage.setItem('advisor.settings.v1', JSON.stringify({ advanced: true }))
+    open()
+    await user.click(await screen.findByRole('button', { name: c.deleteEverything }))
+    // Nothing has been deleted by the first click: it only says what will be.
+    expect(calls.some((x) => x.url === '/api/data/delete')).toBe(false)
+    for (const w of c.deleteWhat) expect(screen.getByText(w)).toBeInTheDocument()
+    expect(screen.getByText(c.deleteKeeps)).toBeInTheDocument()
+    expect(screen.getByText(c.deleteCloses)).toBeInTheDocument()
+
+    // "Keep my data" goes back without deleting anything.
+    await user.click(screen.getByRole('button', { name: c.deleteCancel }))
+    expect(calls.some((x) => x.url === '/api/data/delete')).toBe(false)
+
+    await user.click(screen.getByRole('button', { name: c.deleteEverything }))
+    await user.click(screen.getByRole('button', { name: c.deleteConfirm }))
+    expect(await screen.findByText(c.deleted)).toBeInTheDocument()
+    expect(screen.getByText('the models you downloaded')).toBeInTheDocument()
+    const del = calls.find((x) => x.url === '/api/data/delete')
+    expect(JSON.parse(del?.body ?? '{}')).toEqual({ confirm: true })
+    expect(localStorage.getItem('advisor.settings.v1')).toBeNull()
+  })
+
+  it('says nothing was deleted when the daemon refuses', async () => {
+    const user = userEvent.setup()
+    serve({ deleteAnswer: { status: 409, message: 'a test is running; stop it first, then delete everything' } })
+    open()
+    await user.click(await screen.findByRole('button', { name: c.deleteEverything }))
+    await user.click(screen.getByRole('button', { name: c.deleteConfirm }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(c.deleteFailed('a test is running; stop it first, then delete everything'))
   })
 })

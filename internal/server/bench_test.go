@@ -90,7 +90,7 @@ func (o *benchOllama) Generate(ctx context.Context, req backend.GenerateRequest,
 		return ctx.Err()
 	}
 	time.Sleep(2 * time.Millisecond)
-	tokens := len(strings.Fields(req.Prompt))*6/5 + 1
+	tokens := len(strings.Fields(req.Prompt.Text()))*6/5 + 1
 	if err := on(backend.GenerateEvent{Response: "The"}); err != nil {
 		return err
 	}

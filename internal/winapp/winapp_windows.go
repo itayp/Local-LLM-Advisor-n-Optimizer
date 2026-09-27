@@ -50,3 +50,14 @@ func registerDisplayName(aumid, displayName string) error {
 	defer k.Close()
 	return k.SetStringValue("DisplayName", displayName)
 }
+
+func unregisterIdentity() (bool, error) {
+	err := registry.DeleteKey(registry.CURRENT_USER, `Software\Classes\AppUserModelId\`+AUMID)
+	if err == registry.ErrNotExist {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("winapp: removing the AUMID's registration: %w", err)
+	}
+	return true, nil
+}

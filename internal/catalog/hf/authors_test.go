@@ -47,6 +47,9 @@ func (h *authorHub) serve(w http.ResponseWriter, r *http.Request) {
 func (h *authorHub) client() *Client {
 	c := New("advisor-test/0")
 	c.BaseURL = h.srv.URL
+	// The fake is plain HTTP on this computer; the daemon's transport
+	// (internal/egress) would refuse it, which is egress's own test.
+	c.HTTP.Transport = http.DefaultTransport
 	c.MinInterval = 0
 	c.Log = slog.New(slog.NewTextHandler(io.Discard, nil))
 	c.Sleep = func(ctx context.Context, d time.Duration) error { return ctx.Err() }

@@ -189,8 +189,8 @@ func (h *Harness) prepare(ctx context.Context, t Target, req Request) (*prepared
 
 	plan := Plan{
 		Model: inst.Name, ModelSource: p.facts.Source, NumCtx: numCtx, NumCtxSource: source, Estimate: est,
-		Suite: SuiteInfo{Version: h.suite.Version, Digest: h.suite.Digest(), CompletionTokens: h.suite.CompletionTokens,
-			Warmups: h.suite.Warmups, Repeats: h.suite.Repeats, Temperature: h.suite.Temperature, Seed: h.suite.Seed},
+		Suite: SuiteInfo{Version: h.suite.Version(), Digest: h.suite.Digest(), CompletionTokens: h.suite.CompletionTokens(),
+			Warmups: h.suite.Warmups(), Repeats: h.suite.Repeats(), Temperature: h.suite.Temperature(), Seed: h.suite.Seed()},
 	}
 	if p.facts.Source == "runtime" {
 		plan.Notes = append(plan.Notes, "the curated list does not know this model, so its estimate is built from what "+
@@ -212,7 +212,7 @@ func (h *Harness) prepare(ctx context.Context, t Target, req Request) (*prepared
 	}
 	for _, spec := range h.selected(req.Prompts) {
 		pp := PlannedPrompt{ID: spec.ID, Tokens: spec.Tokens}
-		need := spec.Tokens + h.suite.CompletionTokens + h.cfg.ContextMargin
+		need := spec.Tokens + h.suite.CompletionTokens() + h.cfg.ContextMargin
 		if need > effective {
 			if limitedByModel {
 				pp.Skip = fmt.Sprintf("needs a context of at least %s tokens to hold the prompt and its answer, more than this model's own maximum context of %s tokens",
@@ -222,7 +222,7 @@ func (h *Harness) prepare(ctx context.Context, t Target, req Request) (*prepared
 					commas(need), commas(effective))
 			}
 		} else {
-			pp.Runs = h.suite.Repeats
+			pp.Runs = h.suite.Repeats()
 			p.prompts = append(p.prompts, spec)
 		}
 		plan.Prompts = append(plan.Prompts, pp)
@@ -233,7 +233,7 @@ func (h *Harness) prepare(ctx context.Context, t Target, req Request) (*prepared
 		e.Plan = &plan
 		return nil, e
 	}
-	plan.Requests = h.suite.Warmups + len(p.prompts)*h.suite.Repeats
+	plan.Requests = h.suite.Warmups() + len(p.prompts)*h.suite.Repeats()
 	plan.Duration, plan.DurationUnknown = h.duration(est, p.prompts, p.facts)
 	plan.Measured = h.lastMeasured(ctx, t, status, *inst, numCtx)
 	p.plan = plan
@@ -255,7 +255,7 @@ func (h *Harness) lastMeasured(ctx context.Context, t Target, status backend.Sta
 		return nil
 	}
 	for _, r := range rows {
-		if r.GenTPSMedian == nil || r.NumCtx != numCtx || r.SuiteVersion != h.suite.Version || r.BackendVersion != status.Version ||
+		if r.GenTPSMedian == nil || r.NumCtx != numCtx || r.SuiteVersion != h.suite.Version() || r.BackendVersion != status.Version ||
 			(inst.Digest != "" && r.ModelDigest != "" && r.ModelDigest != inst.Digest) {
 			continue
 		}
@@ -295,10 +295,10 @@ func (p *prepared) refuse(plan *Plan, est estimate.Estimate) {
 // selected is the suite's prompts, or the ones asked for, shortest first.
 func (h *Harness) selected(ids []string) []PromptSpec {
 	if len(ids) == 0 {
-		return append([]PromptSpec(nil), h.suite.Prompts...)
+		return h.suite.Prompts()
 	}
 	var out []PromptSpec
-	for _, spec := range h.suite.Prompts { // the suite's order is shortest first
+	for _, spec := range h.suite.Prompts() { // the suite's order is shortest first
 		if contains(ids, spec.ID) {
 			out = append(out, spec)
 		}
@@ -308,7 +308,7 @@ func (h *Harness) selected(ids []string) []PromptSpec {
 
 func (h *Harness) promptIDs() string {
 	var ids []string
-	for _, p := range h.suite.Prompts {
+	for _, p := range h.suite.Prompts() {
 		ids = append(ids, `"`+p.ID+`"`)
 	}
 	return strings.Join(ids, ", ")
@@ -373,17 +373,17 @@ func (h *Harness) duration(est estimate.Estimate, prompts []PromptSpec, facts Mo
 	if !sp.Known || sp.Generation == nil || sp.Prompt == nil || sp.Generation.Low <= 0 || sp.Prompt.Low <= 0 {
 		return nil, "how long it takes depends on the speed the test measures: there is no estimate of it for this computer yet"
 	}
-	c := float64(h.suite.CompletionTokens)
+	c := float64(h.suite.CompletionTokens())
 	fast, slow := 0.0, 0.0
 	request := func(tokens int) {
 		fast += float64(tokens)/sp.Prompt.High + c/sp.Generation.High
 		slow += float64(tokens)/sp.Prompt.Low + c/sp.Generation.Low
 	}
-	for i := 0; i < h.suite.Warmups; i++ {
+	for i := 0; i < h.suite.Warmups(); i++ {
 		request(prompts[0].Tokens)
 	}
 	for _, p := range prompts {
-		for i := 0; i < h.suite.Repeats; i++ {
+		for i := 0; i < h.suite.Repeats(); i++ {
 			request(p.Tokens)
 		}
 	}

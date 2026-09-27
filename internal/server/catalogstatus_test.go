@@ -164,6 +164,7 @@ func TestPublicScoresArriveInTheBackground(t *testing.T) {
 	}
 	srv.cat.externalFetcher = func(cfg *external.Config) *external.Fetcher {
 		f := external.NewFetcher("advisor-test", cfg.EnabledHosts())
+		f.HTTP.Transport = http.DefaultTransport // the fake sources are plain HTTP on this computer
 		f.MinInterval = 0
 		return f
 	}

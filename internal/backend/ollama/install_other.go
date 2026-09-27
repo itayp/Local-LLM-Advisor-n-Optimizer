@@ -17,7 +17,7 @@ import (
 
 func (b *Backend) findBinary() (string, bool) { return "", false }
 
-func (b *Backend) installURL() (string, error) {
+func (b *Backend) installFile() (string, error) {
 	return "", fmt.Errorf("ollama: install: this operating system is not supported")
 }
 

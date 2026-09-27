@@ -107,3 +107,11 @@ const darwinPlistTemplate = `<?xml version="1.0" encoding="UTF-8"?>
 </dict>
 </plist>
 `
+
+func darwinForget(homeDir func() (string, error)) (bool, error) {
+	enabled, err := darwinEnabled(homeDir)
+	if err != nil || !enabled {
+		return false, err
+	}
+	return true, darwinDisable(homeDir)
+}

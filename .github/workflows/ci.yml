@@ -11,6 +11,13 @@ permissions:
 
 env:
   NODE_VERSION: '22'
+  # Build tools the workflow installs, pinned (build-plan step 12,
+  # ARCHITECTURE.md D-69). Every action above is pinned to a commit, with
+  # the tag it was read from beside it; a bump is a reviewed change here.
+  GOVULNCHECK_VERSION: v1.8.0
+  GORELEASER_VERSION: v2.18.2
+  APPIMAGETOOL_VERSION: '1.9.1'
+  APPIMAGETOOL_SHA256: ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0
 
 jobs:
   build:
@@ -34,16 +41,16 @@ jobs:
             targets: 'windows/amd64'
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0 # git describe needs the tags for the version stamp
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
           cache: true
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -124,6 +131,12 @@ jobs:
             # A foreign Host header must be refused (product rule 7's second line of defence).
             code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: evil.example.com' http://127.0.0.1:27182/api/health)
             [ "$code" = 421 ] || { echo "expected 421 for a foreign Host, got $code"; kill $pid; exit 1; }
+            # Only the daemon's own origin is answered (D-67): another port on this computer is another origin.
+            code=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Origin: http://127.0.0.1:5173' http://127.0.0.1:27182/api/data/delete)
+            [ "$code" = 403 ] || { echo "expected 403 for a foreign Origin, got $code"; kill $pid; exit 1; }
+            code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Sec-Fetch-Site: cross-site' http://127.0.0.1:27182/api/health)
+            [ "$code" = 403 ] || { echo "expected 403 for a cross-site request, got $code"; kill $pid; exit 1; }
+            curl -sfI http://127.0.0.1:27182/ | grep -qi "^content-security-policy: default-src 'none'" || { echo "the UI has no Content-Security-Policy"; kill $pid; exit 1; }
             # This runner's hardware, as the daemon detected and stored it on start
             # (step 2). The request waits while detection is still running.
             curl -sf --max-time 120 http://127.0.0.1:27182/api/hardware || { echo "GET /api/hardware failed"; kill $pid; exit 1; }
@@ -143,11 +156,53 @@ jobs:
         if: runner.os == 'Linux'
         run: make build VERSION=${{ steps.version.outputs.version }}
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: advisor-${{ matrix.os }}
           path: dist/advisor-*
           if-no-files-found: error
+
+  # ---------------------------------------------------------------------
+  # Build-plan step 12: the dependencies' known vulnerabilities, on every
+  # push. govulncheck reports only vulnerabilities in code the daemon can
+  # actually reach, for each OS it ships to; npm audit covers the UI's
+  # whole tree (its build tools make the embedded UI). `go mod verify`
+  # checks every module against go.sum.
+  security:
+    name: security (dependencies)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Go — modules match go.sum
+        run: go mod verify
+
+      - name: Go — known vulnerabilities (linux, darwin, windows)
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}
+          for os in linux darwin windows; do
+            echo "== GOOS=$os"
+            GOOS=$os "$(go env GOPATH)/bin/govulncheck" -tags noui ./...
+          done
+
+      - name: UI — install exactly the locked versions
+        working-directory: ui
+        run: npm ci
+
+      - name: UI — known vulnerabilities
+        working-directory: ui
+        run: npm audit --audit-level=moderate
 
   # ---------------------------------------------------------------------
   # Build-plan step 11: cutting a release. `release` publishes the GitHub
@@ -163,30 +218,30 @@ jobs:
   release:
     name: release (GoReleaser)
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build, security]
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0 # tags + full history: GoReleaser's own changelog and version detection need it
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
           cache: true
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: ui/package-lock.json
 
-      - uses: goreleaser/goreleaser-action@v6
+      - uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
         with:
           distribution: goreleaser
-          version: '~> v2'
+          version: ${{ env.GORELEASER_VERSION }}
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -199,13 +254,13 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Version
         id: version
         run: echo "version=$(git describe --tags --always --dirty)" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           name: advisor-macos-latest
           path: dist
@@ -241,7 +296,12 @@ jobs:
       - name: Upload onto the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${{ github.ref_name }}" "dist/macos/Local LLM Advisor.dmg" --clobber
+        # With its SHA-256 beside it: GoReleaser's checksums.txt covers only
+        # the files GoReleaser built (D-69), so each packaged file carries
+        # its own.
+        run: |
+          (cd dist/macos && shasum -a 256 "Local LLM Advisor.dmg" > "Local LLM Advisor.dmg.sha256")
+          gh release upload "${{ github.ref_name }}" "dist/macos/Local LLM Advisor.dmg" "dist/macos/Local LLM Advisor.dmg.sha256" --clobber
 
   package-windows:
     name: package (Windows installer)
@@ -257,14 +317,14 @@ jobs:
     env:
       HAS_WINDOWS_CERT: ${{ secrets.WINDOWS_CERT_BASE64 != '' }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Version
         id: version
         shell: bash
         run: echo "version=$(git describe --tags --always --dirty)" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           name: advisor-windows-latest
           path: dist
@@ -307,7 +367,10 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${{ github.ref_name }}" "dist/LocalLLMAdvisor-Setup-${{ steps.version.outputs.version }}.exe" --clobber
+        run: |
+          f="LocalLLMAdvisor-Setup-${{ steps.version.outputs.version }}.exe"
+          (cd dist && sha256sum "$f" > "$f.sha256")
+          gh release upload "${{ github.ref_name }}" "dist/$f" "dist/$f.sha256" --clobber
 
   package-linux-appimage:
     name: package (Linux AppImage)
@@ -317,13 +380,13 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Version
         id: version
         run: echo "version=$(git describe --tags --always --dirty)" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           name: advisor-ubuntu-latest
           path: dist
@@ -336,9 +399,13 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libfuse2 || sudo apt-get install -y libfuse2t64
-          curl -sL -o /usr/local/bin/appimagetool \
-            https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
-          chmod +x /usr/local/bin/appimagetool
+          # A pinned release, checked against its SHA-256 before it runs —
+          # never the moving "continuous" build: what builds the customer's
+          # download is itself a reviewed input (D-69).
+          curl -fsSL -o /tmp/appimagetool \
+            "https://github.com/AppImage/appimagetool/releases/download/${APPIMAGETOOL_VERSION}/appimagetool-x86_64.AppImage"
+          echo "${APPIMAGETOOL_SHA256}  /tmp/appimagetool" | sha256sum -c -
+          sudo install -m 0755 /tmp/appimagetool /usr/local/bin/appimagetool
 
       - name: Build the AppImage
         run: packaging/linux/build_appimage.sh dist/advisor-linux-amd64 "dist/LocalLLMAdvisor-${{ steps.version.outputs.version }}-x86_64.AppImage"
@@ -346,4 +413,7 @@ jobs:
       - name: Upload onto the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${{ github.ref_name }}" "dist/LocalLLMAdvisor-${{ steps.version.outputs.version }}-x86_64.AppImage" --clobber
+        run: |
+          f="LocalLLMAdvisor-${{ steps.version.outputs.version }}-x86_64.AppImage"
+          (cd dist && sha256sum "$f" > "$f.sha256")
+          gh release upload "${{ github.ref_name }}" "dist/$f" "dist/$f.sha256" --clobber

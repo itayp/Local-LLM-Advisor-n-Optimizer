@@ -34,12 +34,26 @@ disagree, the code is wrong.
 8. **Counts and model names in prose rot.** The catalogue is data; the docs say
    "the curated families", never "the 12 families".
 
-## Two rules the code enforces (do not weaken them)
+## Rules the code enforces (do not weaken them)
 
 - **Rule 7 is a constant.** `server.LoopbackHost` is `const`; `server.Listen`
   takes only a port; `Serve` refuses a non-loopback listener; every request
-  needs a loopback `Host` header. There is no bind flag and there must never
-  be one. Tests: `internal/server/server_test.go`.
+  needs a loopback `Host` header, a browser's `Origin` must be the daemon's
+  own origin exactly, and `Sec-Fetch-Site` must be same-origin on the API
+  (ARCHITECTURE.md D-67). There is no bind flag and there must never be one.
+  Tests: `internal/server/server_test.go`.
+- **Rule 7's other half is a package.** Every connection to another
+  computer is made by a client from `internal/egress` (`egress.Client(purpose)`),
+  whose transport refuses anything but HTTPS to a host
+  `internal/egress/hosts.go` lists for that purpose — that file is the
+  audit (D-64). The runtime is reached only through `egress.Local`, which
+  dials loopback addresses only. `internal/archtest` fails the build if any
+  other package builds a client, dials, listens, turns off TLS checks,
+  sends a credential or names a download tool.
+- **A model is sent the suite's text and nothing else.** A prompt is a
+  `suite.Prompt`, which only the embedded suite can make;
+  `backend.GenerateRequest` has no free-text field, and only
+  `internal/bench` calls `Generate` (D-8, D-65; `internal/archtest`).
 - **Rule 4 is a type.** A number a user will see about this machine is a
   `figure.Bytes` or `figure.Rate` with `source: "estimated" | "measured"`;
   a number someone else published about a model is a `figure.Public`, which
@@ -62,7 +76,7 @@ cmd/advisor/            main: opens the store, starts the server on 127.0.0.1, o
 internal/server/        HTTP API (/api/*), Host/Origin checks, embedded UI (go:embed), APITypes()
 internal/store/         SQLite via modernc.org/sqlite; migrations/NNNN_*.sql; DefaultDataDir
 internal/hardware/      Profile + Detect: per-OS probes behind an env seam, runtime-support rules, tier, fingerprint
-internal/backend/       Backend interface + registry; internal/backend/ollama arrives in step 3
+internal/backend/       Backend interface + registry; internal/backend/ollama (step 3) drives Ollama through egress.Local, and its installer download is pinned to a release and checked against Ollama's published sha256sum.txt (download.go, D-66)
 internal/catalog/       curated families: YAML loader + validation, repo-file grouping, installed-model matching (step 4)
 internal/catalog/gguf/  the GGUF header parser (stops at the tokenizer; real header fixtures in testdata/)
 internal/catalog/parquet/  a minimal Parquet reader for Arena's leaderboard files: flat tables, plain and dictionary encodings, Snappy (D-56)
@@ -71,11 +85,14 @@ internal/catalog/refresh/  Run (YAML → Hub → catalog_models/catalog_files, t
 internal/catalog/external/ public benchmark data (step 9b): the approved sources' clients (Hugging Face Eval Results, Arena, Epoch AI), a polite fetcher limited to PermittedHosts, the coverage report, and the View the screens and the engine read
 internal/estimate/      Fit (memory terms, split, category + the threshold that decided), the speed range, placement, gpus.yaml loader; Config holds every constant
 internal/recommend/     Recommend: at most three cards with templated reasons, versus-current, confidence; Config holds every weight
-internal/bench/         the benchmark harness (step 6): suite loader, plan + spill refusal, one-at-a-time runner with a cancel that unloads, 1 Hz resource sampler (per-OS probes behind a sysEnv seam), medians + spread, write-back and calibration evidence
+internal/bench/         the benchmark harness (step 6): the suite (internal/suite), plan + spill refusal, one-at-a-time runner with a cancel that unloads, 1 Hz resource sampler (per-OS probes behind a sysEnv seam), medians + spread, write-back and calibration evidence
 internal/watch/         new-model watch state, notifications, log (step 10); notify_windows.go posts a real AUMID-attributed toast (step 11, D-63), falling back to the legacy balloon
 internal/tray/          the tray icon + menu (step 11, D-61): wraps gogpu/systray behind Run(ctx, Options); a fake backend makes menu construction and the autostart toggle testable without a real OS tray
 internal/autostart/     "start at login" (step 11): one file per OS behind a cmdRunner/registry seam — a LaunchAgent plist (macOS), the HKCU Run key (Windows, the same value the installer's own checkbox writes), a systemd user unit (Linux, no sudo)
-internal/update/        Check (step 11, D-62): one GET to GitHub's release feed, only on a manual "Check for updates" click; PermittedHost is its own allow-list, apart from catalog/external's
+internal/update/        Check (step 11, D-62): one GET to GitHub's release feed, only on a manual "Check for updates" click, through egress.Client(egress.UpdateCheck)
+internal/egress/        the advisor's whole outbound network (step 12, D-64): hosts.go — the one allow-list, by purpose; Client (HTTPS to listed hosts only, every redirect checked) and Local (loopback only, no proxy)
+internal/suite/         the benchmark suite (data/bench/) and suite.Prompt, the sealed type that is the only text a model can be sent (step 12, D-65)
+internal/archtest/      tests that read the source (step 12, D-64, D-65, D-69, D-70): only egress reaches the network, D-11's import direction, only bench calls Generate, dependencies and CI actions pinned
 internal/winapp/        Windows-only identity (step 11, D-63): registers the AUMID and its display name so toast notifications, the tray and the installer all read as one app; a no-op on macOS/Linux
 internal/figure/        Source, Bytes, Rate, Public, Check and CheckSeparation — product rule 4, and public data kept apart
 internal/version/       Version (set by -ldflags), GoVersion
@@ -83,7 +100,7 @@ ui/                     Vite + React + TypeScript; builds into internal/server/u
 data/                   data.go embeds the data files (package advisor/data)
 data/catalog/           families.yaml — the curated catalogue (data, never counted in prose); external.yaml — the approved public-data sources and the metric → purpose map; aliases.yaml — each source's names for catalogue sizes
 data/hardware/          runtime-support.yaml — which GPU path Ollama should use per card; gpus.yaml — memory bandwidth per graphics part and processor family; both with sources and dates
-data/bench/             suite.yaml + text.txt — the benchmark suite: the advisor's own prose, three prompts, the options; versioned and pinned by digest (suite_test.go)
+data/bench/             suite.yaml + text.txt — the benchmark suite: the advisor's own prose, three prompts, the options; versioned and pinned by digest (internal/suite/suite_test.go; the schema line in suite.yaml still says internal/bench.Suite, which is now an alias — editing the file would move its pinned digest)
 data/icon/              the tray icon PNGs, embedded (step 11); scripts/gen_icon.py is the one source for these and for every per-OS derivative under packaging/
 scripts/probe0/         step 0's estimator experiment, unchanged, with its reports in results/ (internal/estimate's tests replay them)
 scripts/calibrate/      the dev-side speed instrument: llama-bench JSON → the speed model's factors, results/ to commit; README says how
@@ -198,6 +215,13 @@ are `{"error": {"code", "message"}}`. Numbers a user sees are figures
 (above). Strings the UI shows come from the API in words, not codes, when
 they are for the user; codes are for the UI's logic.
 
+**Local data.** The data folder is 0700 and the database 0600 (`store.Open`).
+Anything new the advisor writes goes in the data folder. A file written
+anywhere else is listed in ARCHITECTURE.md D-68 and in `SECURITY.md`, and
+"delete everything" (`POST /api/data/delete`, `internal/server/deletedata.go`)
+removes it. A backend that writes files implements
+`backend.DataForgetter`.
+
 **Store.** Every table has integer `id` + RFC 3339 UTC `created_at`;
 booleans 0/1; a `*_json` column for a struct that will grow beside plain
 queryable columns; `source` columns are `CHECK`ed. A schema change is a new
@@ -262,20 +286,32 @@ library), its `github.com/go-webgpu/goffi` dependency, and
 `github.com/godbus/dbus/v5` (its Linux D-Bus backend) — still zero cgo.
 UI: React, React Router, Vite, Vitest, Testing Library. A new one is a
 sentence in the PR saying what it replaces. Nothing that needs cgo, ever.
+Versions are pinned (D-69): `go.mod`/`go.sum`, and exact versions in
+`ui/package.json` (`ui/.npmrc`: `save-exact`, `ignore-scripts`); CI's
+`security` job runs `go mod verify`, govulncheck and `npm audit`, and every
+action is pinned to a commit. `internal/archtest/deps_test.go` names the
+direct dependencies; adding one means adding it there too.
 
-**Network.** Outbound requests go only to the model sources on an allow-list:
-Hugging Face (`huggingface.co` and its CDNs), the Ollama download host (step
-3), and the public-data sources step 9a approved —
-Arena's dataset files on `huggingface.co` and its `*.hf.co` CDN (D-56),
-and `epoch.ai` —
-bounded by `external.PermittedHosts` and switched on in
-`data/catalog/external.yaml` (ARCHITECTURE.md D-53). The public-data
-requests are a function of the data files alone, the same on every
-install. Nothing the user typed is ever sent anywhere. No telemetry. The
-Hugging Face client (`internal/catalog/hf`) follows redirects only to
-Hugging Face's own hosts, reads GGUF headers with range requests and
-refuses a whole-file answer, never sends a token, and honours the Hub's
-rate limits (ARCHITECTURE.md D-34).
+**Network.** Outbound requests go only to the hosts in
+`internal/egress/hosts.go`, the one allow-list (ARCHITECTURE.md D-64):
+Hugging Face (`huggingface.co`, `hf.co` and their CDNs) for the model list
+and the public data (Arena's files are on the Hub, D-56), `epoch.ai`, Ollama's
+download (`ollama.com/download/`, `github.com/ollama/ollama/releases/` and
+GitHub's two download hosts), and `api.github.com` for this project's
+releases. Each is listed for its purposes only. Take a client from
+`egress.Client(purpose, timeout)` — never build one; a test fails if you do.
+A new host is a line in `hosts.go` with what is fetched and why, reviewed
+as a product decision. `external.PermittedHosts` stays the per-source
+ceiling that `data/catalog/external.yaml` cannot exceed (D-53), and is
+tested to sit inside egress's list. The requests are a function of the data
+files and the version alone, the same on every install. Nothing the user
+typed is ever sent anywhere. No telemetry, no token, no cookie. The Hugging
+Face client (`internal/catalog/hf`) follows redirects only to Hugging
+Face's own hosts, reads GGUF headers with range requests and refuses a
+whole-file answer, and honours the Hub's rate limits (D-34). The daily watch
+never makes the first contact: until the person has fetched the model list,
+a scheduled check does nothing (D-68). Tests give their fake servers a plain
+transport (`c.HTTP.Transport = http.DefaultTransport`); only test files may.
 
 **The advisor calls no LLM to do its own job.** Estimation is arithmetic,
 recommendation is rules over data. Wanting a model to decide means the

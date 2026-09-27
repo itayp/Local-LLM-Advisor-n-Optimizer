@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"advisor/internal/egress"
 )
 
 // The wire shapes below mirror Ollama's documented JSON exactly
@@ -80,8 +82,10 @@ type httpClient struct {
 	http *http.Client
 }
 
+// newHTTPClient talks to Ollama at base through egress.Local: this computer
+// only, never a proxy.
 func newHTTPClient(base string, timeout time.Duration) *httpClient {
-	return &httpClient{base: base, http: &http.Client{Timeout: timeout}}
+	return &httpClient{base: base, http: egress.Local(timeout)}
 }
 
 func (c *httpClient) do(ctx context.Context, method, path string, body any, out any) error {
@@ -105,7 +109,10 @@ func (c *httpClient) do(ctx context.Context, method, path string, body any, out 
 		return err
 	}
 	defer resp.Body.Close()
-	data, err := io.ReadAll(resp.Body)
+	// Ollama's answers are small JSON (a /api/show with its model_info is
+	// the largest, well under a megabyte); the bound is against a process
+	// on that port that is not Ollama.
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
 	if err != nil {
 		return err
 	}
@@ -158,13 +165,13 @@ func (c *httpClient) pull(ctx context.Context, model string, progress func(statu
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := (&http.Client{}).Do(req)
+	resp, err := egress.Local(0).Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		data, _ := io.ReadAll(resp.Body)
+		data, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
 		return fmt.Errorf("ollama: pull %s: %s: %s", model, resp.Status, strings.TrimSpace(truncate(string(data), 300)))
 	}
 	dec := json.NewDecoder(resp.Body)
@@ -189,9 +196,10 @@ func (c *httpClient) pull(ctx context.Context, model string, progress func(statu
 	}
 }
 
-// genOptions are the request fields generate sends beside the prompt.
+// genOptions are the request fields generate sends beside the prompt. There
+// is no system prompt: the benchmark sends its text raw (D-44), and nothing
+// else is ever sent to a model (D-65).
 type genOptions struct {
-	system    string
 	keepAlive string
 	options   map[string]any
 	// raw: no template, no system prompt (Ollama's "raw").
@@ -210,9 +218,6 @@ func (c *httpClient) generate(ctx context.Context, model, prompt string, o genOp
 	body := map[string]any{"model": model, "stream": true}
 	if prompt != "" {
 		body["prompt"] = prompt
-	}
-	if o.system != "" {
-		body["system"] = o.system
 	}
 	if o.keepAlive != "" {
 		body["keep_alive"] = o.keepAlive
@@ -236,13 +241,13 @@ func (c *httpClient) generate(ctx context.Context, model, prompt string, o genOp
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := (&http.Client{}).Do(req)
+	resp, err := egress.Local(0).Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		data, _ := io.ReadAll(resp.Body)
+		data, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
 		return &StatusError{Status: resp.StatusCode, Message: errorMessage(data, resp.Status)}
 	}
 	dec := json.NewDecoder(resp.Body)

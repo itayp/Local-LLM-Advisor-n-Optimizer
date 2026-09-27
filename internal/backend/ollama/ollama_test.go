@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"advisor/internal/backend"
+	"advisor/internal/suite"
 )
 
 // fakeEnv is the env seam's test double: no real environment variables, no
@@ -45,6 +46,23 @@ func (e fakeEnv) statSize(p string) (int64, bool, bool) {
 
 func (e fakeEnv) userHomeDir() (string, error) { return e.home, nil }
 
+// suitePrompt is the n-th request of the suite's first prompt and the
+// suite's options at numCtx: the only thing Generate can be given (D-65).
+func suitePrompt(t *testing.T, n, numCtx int) (suite.Prompt, suite.Options) {
+	t.Helper()
+	s, err := suite.Default()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s.Request(s.Prompts()[0], n), s.Options(numCtx)
+}
+
+func anyPrompt(t *testing.T) suite.Prompt {
+	t.Helper()
+	p, _ := suitePrompt(t, 1, 4096)
+	return p
+}
+
 func backendWithEnv(e env) *Backend {
 	return &Backend{env: e}
 }
@@ -66,9 +84,42 @@ func TestHostHonoursOLLAMA_HOST(t *testing.T) {
 	if got, want := b2.host(), "http://127.0.0.1:11434"; got != want {
 		t.Fatalf("default host() = %q, want %q", got, want)
 	}
-	b3 := backendWithEnv(fakeEnv{vars: map[string]string{"OLLAMA_HOST": "https://example.com/"}})
-	if got, want := b3.host(), "https://example.com"; got != want {
-		t.Fatalf("host() with scheme = %q, want %q", got, want)
+	for raw, want := range map[string]string{
+		"https://localhost:11500/": "https://localhost:11500",
+		"0.0.0.0":                  "http://127.0.0.1:11434",
+		":11500":                   "http://127.0.0.1:11500",
+		"0.0.0.0:11500":            "http://127.0.0.1:11500",
+		"[::1]:11434":              "http://[::1]:11434",
+		"http://127.0.0.1":         "http://127.0.0.1:11434",
+	} {
+		b := backendWithEnv(fakeEnv{vars: map[string]string{"OLLAMA_HOST": raw}})
+		if got, note := b.resolveHost(); got != want || note != "" {
+			t.Errorf("OLLAMA_HOST=%q: host %q (note %q), want %q", raw, got, note, want)
+		}
+	}
+}
+
+// Product rule 7, D-65: an OLLAMA_HOST that names another computer is not
+// used — the advisor measures this machine and sends nothing elsewhere —
+// and Detect says so in words instead of failing.
+func TestAnOllamaOnAnotherComputerIsNotUsed(t *testing.T) {
+	for _, raw := range []string{"https://example.com/", "192.168.1.5:11434", "gpu-box.local", "ftp://127.0.0.1", "127.0.0.1:notaport"} {
+		b := backendWithEnv(fakeEnv{vars: map[string]string{"OLLAMA_HOST": raw}})
+		got, note := b.resolveHost()
+		if got != defaultHost {
+			t.Errorf("OLLAMA_HOST=%q: host %q, want the default %q", raw, got, defaultHost)
+		}
+		if !strings.Contains(note, "not this computer") {
+			t.Errorf("OLLAMA_HOST=%q: note %q does not say why", raw, note)
+		}
+	}
+	b := backendWithEnv(fakeEnv{vars: map[string]string{"OLLAMA_HOST": "192.168.1.5:11434"}})
+	st, err := b.Detect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(st.Detail, "not this computer") {
+		t.Errorf("Detect's detail %q does not say OLLAMA_HOST was set aside", st.Detail)
 	}
 }
 
@@ -346,7 +397,7 @@ func TestGenerateStreamsEventsAndFinalTiming(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req map[string]any
 		json.NewDecoder(r.Body).Decode(&req)
-		if req["model"] != "llama3.1:8b" || req["prompt"] != "hi" {
+		if req["model"] != "llama3.1:8b" || req["prompt"] != anyPrompt(t).Text() {
 			t.Errorf("generate request = %v", req)
 		}
 		enc := json.NewEncoder(w)
@@ -358,7 +409,7 @@ func TestGenerateStreamsEventsAndFinalTiming(t *testing.T) {
 
 	b := newTestBackend(t, srv)
 	var got []backend.GenerateEvent
-	err := b.Generate(context.Background(), backend.GenerateRequest{Model: "llama3.1:8b", Prompt: "hi"},
+	err := b.Generate(context.Background(), backend.GenerateRequest{Model: "llama3.1:8b", Prompt: anyPrompt(t)},
 		func(e backend.GenerateEvent) error { got = append(got, e); return nil })
 	if err != nil {
 		t.Fatal(err)

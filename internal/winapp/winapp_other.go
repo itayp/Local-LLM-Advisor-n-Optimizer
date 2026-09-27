@@ -6,3 +6,5 @@ package winapp
 // concept. Not an error: nothing anywhere depends on this having run on
 // macOS or Linux.
 func registerIdentity() error { return nil }
+
+func unregisterIdentity() (bool, error) { return false, nil }

@@ -51,11 +51,13 @@ you turn it on), and **Quit**.
 **To uninstall:** quit it from the tray menu, then drag **Local LLM
 Advisor** from your Applications folder to the Trash — the normal way to
 remove any Mac app. If you had turned "Start at login" on, that setting is
-removed with it. Your settings, downloaded models, and benchmark history
-live separately, in *~/Library/Application Support/Advisor* — the
-uninstall above leaves that folder alone, so reinstalling later picks up
-where you left off; delete that folder yourself if you want a completely
-clean slate.
+removed with it. Your settings and test history live separately, in
+*~/Library/Application Support/Advisor*. The uninstall above leaves that
+folder alone, so reinstalling later picks up where you left off. For a
+completely clean slate, click **Settings → Delete everything this app has
+stored** before you uninstall, or delete that folder yourself. Your
+downloaded models are Ollama's, in Ollama's own folder, and stay until you
+remove them. [SECURITY.md](SECURITY.md) says exactly what the app stores.
 
 ---
 
@@ -96,10 +98,12 @@ Advisor**, **Start at login**, and **Quit**.
 LLM Advisor**, and choose **Uninstall** — or use **Local LLM Advisor** in
 your Start Menu, which the installer also adds an uninstaller shortcut
 to. Either way removes the "start at login" entry along with everything
-else the installer added. Your settings, downloaded models, and benchmark
-history live separately, in *%LOCALAPPDATA%\Advisor* — uninstalling
-leaves that folder alone, so reinstalling later picks up where you left
-off; delete that folder yourself if you want a completely clean slate.
+else the installer added. Your settings and test history live separately,
+in *%LOCALAPPDATA%\Advisor*. Uninstalling leaves that folder alone, so
+reinstalling later picks up where you left off. For a completely clean
+slate, click **Settings → Delete everything this app has stored** before
+you uninstall, or delete that folder yourself. Your downloaded models are
+Ollama's, in Ollama's own folder, and stay until you remove them.
 
 ---
 
@@ -156,11 +160,13 @@ same way you'd remove any other app — through your software installer, or
 (never required, just available). If you used the AppImage, delete the
 file. Either way, if you'd turned "Start at login" on, turn it off from
 the tray menu first — an uninstall doesn't reach into your systemd user
-directory to undo that for you. Your settings, downloaded models, and
-benchmark history live separately, in `~/.local/share/advisor` (or
-wherever `$XDG_DATA_HOME` points); removing the app leaves that folder
-alone, so reinstalling later picks up where you left off — delete it
-yourself if you want a completely clean slate.
+directory to undo that for you. (**Settings → Delete everything this app
+has stored** does turn it off.) Your settings and test history live
+separately, in `~/.local/share/advisor` (or wherever `$XDG_DATA_HOME`
+points). Removing the app leaves that folder alone, so reinstalling later
+picks up where you left off. For a completely clean slate, use that button
+before removing the app, or delete the folder yourself. Your downloaded
+models are Ollama's and stay until you remove them.
 
 ---
 

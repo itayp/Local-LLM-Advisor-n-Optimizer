@@ -4,7 +4,8 @@
 D-27 to D-31 in step 3, D-32 to D-37 in step 4, D-38 to D-43 in step 5,
 D-44 to D-51 in step 6, D-52 in step 7, D-53 to D-56 in step 9b, D-57 in
 step 10, D-58 to D-59 in the recommendation-ranking backlog work that
-followed, D-60 to D-63 in step 11.
+followed, D-60 to D-63 in step 11, D-64 to D-70 in step 12 (security and
+privacy review).
 Every later step inherits this shape. A change to a decision here is a new
 numbered entry that supersedes the old one — the old entry stays, marked
 superseded, so the reasoning survives.
@@ -183,6 +184,9 @@ code.
 
 ## D-10. Official APIs and permitted sources only
 
+*Step 12 built the one-file allow-list this entry asked for: D-64
+(`internal/egress/hosts.go`), enforced at the transport.*
+
 *Step 9a decided the list: D-53 records it, with the research note
 (`research/EXTERNAL_SOURCES.md`) that argues it.*
 
@@ -237,6 +241,9 @@ bench → watch.
   fixed import path.
 
 ## D-12. The daemon binds to `127.0.0.1` — a constant, refused otherwise, and checked twice
+
+*Tightened by D-67: the Origin must be the daemon's own origin, not any
+loopback origin, and Sec-Fetch-Site is checked on the API.*
 
 **Decision.** `server.LoopbackHost` is a `const`. `server.Listen(port)` is
 the only listener constructor and takes only a port. `Server.Serve` refuses a
@@ -694,6 +701,10 @@ Ollama process reads as unreachable quickly rather than hanging a page load.
 
 ## D-29. Install and Start: a button, per OS, no sudo, no system service
 
+*Superseded in part by D-66: Ollama does publish a checksum with every
+release (`sha256sum.txt`), and the install is now pinned to a release and
+refused unless the file matches it.*
+
 **Decision.** Per product rule 5, `Install` and `Start` only ever run from a
 UI action that already said what it would do; the methods themselves change
 nothing until called. macOS and Windows: download the official installer
@@ -858,6 +869,9 @@ of read each row came from; `header_json` holds every pair that was kept.
 
 ## D-34. The Hugging Face client is polite, header-only and cached
 
+*The host list moved to the one allow-list (D-64); `hf.allowedHost` now
+reads it.*
+
 **Decision.** `internal/catalog/hf` makes two kinds of request. The
 model-info listing (`/api/models/{repo}?blobs=true`: files, sizes, LFS
 hashes, the Hub's own parameter count) is sent with `If-None-Match` and its
@@ -930,7 +944,6 @@ sentence for the curator, stored on `installed_models` (`catalog_model_id`,
 inventory refresh and every catalogue refresh, costs no network, and
 `GET /api/catalog/unknown` lists the unknown ones — the curator's signal,
 never an error (D-7).
-
 
 ## D-37. The file type is not worth the tokenizer (the gate's finding)
 
@@ -1195,6 +1208,9 @@ dependency.
 Step 6 (benchmark harness, 2026-09-19) adds D-44 to D-49.
 
 ## D-44. The suite is data: the advisor's own text, sent raw, versioned and pinned
+
+*The suite moved to `internal/suite`, where a prompt is a sealed type only
+the embedded suite can make (D-65).*
 
 **Decision.** `data/bench/suite.yaml` (schema in its header, mirrored by
 `bench.Suite`, decoded strictly) names the text (`text.txt`: original
@@ -1800,7 +1816,6 @@ argument; this is what was built from it.
   place) is step 10's; the curator flag for an installed model whose quant
   differs from `ollama_quant` waits for a size that states one.
 
-
 ## D-54. The first coverage report, and no screen that needs the model list is a dead end
 
 **Context.** Two things arrived together on 2026-09-24. The first run of
@@ -1921,7 +1936,6 @@ read after Arena, no public score appeared at all while it ran.
   Epoch's download. The report prints retries and the seconds waited, and
   the fetcher logs any wait of five seconds or more, so a slow source shows
   why in verify.log.
-
 
 ## D-56. Arena from the files it publishes, with a small Parquet reader; public scores load in the background
 
@@ -2285,6 +2299,10 @@ until someone runs the packaged app.
 
 ## D-62. The update check: one allow-listed host, manual only, no background poller
 
+*Amended by D-64: `api.github.com` is a line in the one allow-list, kept
+apart from the model-data hosts by purpose rather than by living in its own
+file.*
+
 **Decision.** `internal/update.Check` makes a single unauthenticated GET to
 `api.github.com`'s "latest release" endpoint for this repo, only when the
 customer clicks Settings' "Check for updates" — never on a timer, never at
@@ -2324,3 +2342,260 @@ real Windows host; `notify_windows_script.go`'s pure string-building (the
 XML escaping, the PowerShell escaping, the two scripts' shape) is unit
 tested, but the toast actually appearing on screen is not — the same
 caveat D-61 makes about the tray.
+
+---
+
+Step 12 (security and privacy review, full code review, 2026-09-27) adds
+D-64 to D-70. The findings, with what was checked where, are
+`claude/step-12-security.md`; the customer's account is `SECURITY.md`.
+
+## D-64. One allow-list, enforced at the transport: `internal/egress`
+
+**Context.** Before step 12 there were four allow-lists in four packages
+(`hf.allowedHost`, `external.PermittedHosts`, `update.PermittedHost`,
+`ollama.downloadHost`) and twelve places that built their own
+`http.Client` (a thirteenth used `http.DefaultClient`). The lists were
+checked by the callers that remembered to: Ollama's installer checked its
+first URL and then followed any redirect to any host, over any scheme; the
+update check followed any redirect; and nothing stopped a new package from
+building a client with no list at all. D-10 asked for "every outbound host
+on an allow-list in one file; the list is the audit".
+
+**Decision.**
+
+- `internal/egress/hosts.go` is that file: every host the advisor may
+  contact, each with the purposes it serves (`ModelList`, `PublicScores`,
+  `OllamaDownload`, `UpdateCheck`), an optional path prefix (GitHub is
+  narrowed to `/ollama/ollama/releases/` and to this project's releases),
+  and a sentence saying what is fetched.
+- `egress.Client(purpose, timeout)` is the only way to reach another
+  computer. Its transport refuses, before a byte is sent, any request that
+  is not HTTPS on the default port to a host the list gives that purpose,
+  with no credentials in the URL. Redirects are requests too, so every hop
+  is checked by the same transport, whatever redirect policy a caller sets
+  on top. TLS is verified, minimum TLS 1.2. A proxy the computer is set up
+  with is honoured, because the TLS still runs end to end to the listed host.
+- `egress.Local(timeout)` is the only way to reach the runtime: no proxy,
+  and a dial check on the resolved address that refuses anything but
+  loopback. The advisor's own CLI talks to its daemon through it too.
+- The narrower lists stay as narrower lists (`hf.allowedHost` reads
+  egress; `external.PermittedHosts` is tested to be a subset of it).
+- `internal/archtest/network_test.go` reads every non-test file under
+  `cmd/` and `internal/` and fails the build on: an `http.Client` or
+  `Transport` built outside egress, `http.DefaultClient`/`Get`/`Post`, a
+  `net.Dial*`, a listener anywhere but `server.Listen`,
+  `InsecureSkipVerify`, a replaced `Transport`, a string naming a download
+  tool (curl, wget, Invoke-WebRequest, …), a credential header or token
+  variable, or a cookie jar.
+
+**Consequences.** Adding a host is a line in `hosts.go` with its reason,
+and nothing else can add one. Tests of the Hugging Face client and the
+public sources give their fake servers a plain transport (`c.HTTP.Transport
+= http.DefaultTransport`), which only test files may do. `scripts/` (probe0,
+calibrate) are developer tools, not shipped, and are outside the scan.
+
+## D-65. Nothing typed is ever sent: a model receives only the suite's text
+
+**Decision.** D-9 and D-44 said nothing the user typed is ever sent, and
+that the code should make that impossible rather than merely true. Step 12
+makes it a property of the types and of the one path to a model:
+
+- **The prompt is sealed.** The suite moved to `internal/suite`.
+  `suite.Prompt` has no exported field. Its only maker is
+  `(*Suite).Request`, which panics on any `Suite` that `suite.Default()`
+  (the embedded one) did not return. The suite's data is unexported and
+  read through methods, so the embedded suite cannot be edited after
+  loading. The loader now refuses a lead line that is more than one word
+  around `{n}`.
+- **`backend.GenerateRequest` carries no free text:** `Model`, a
+  `suite.Prompt`, `suite.Options` (numbers only), `KeepAlive`, `Raw`,
+  `NoTruncate`. The `System` field is gone (nothing set it), and so is the
+  `map[string]any` of options. `archtest/model_test.go` pins this shape and
+  holds D-8: only `internal/bench` calls `Generate` or builds a request.
+- **The runtime is this computer.** `OLLAMA_HOST` is honoured only when
+  it names this computer (loopback or `localhost`; `0.0.0.0`/`::` read as
+  127.0.0.1). One that names another machine is ignored, and `Detect`
+  says so in words. An Ollama the advisor starts itself is started with a
+  loopback `OLLAMA_HOST`, whatever the environment said.
+- **A download is a curated name.** `POST /api/models/pull` accepts only
+  an Ollama tag the curated catalogue lists, so the endpoint cannot hand
+  free text to the runtime's registry (or, through `hf.co/…` tags, to
+  Hugging Face).
+- **The page cannot send anywhere either.** The UI's
+  Content-Security-Policy has `connect-src 'self'` (D-67).
+
+**Why.** Every outbound request is already a function of the embedded data
+files and the version (D-53, D-64), and no API request carries a string that
+reaches another computer except the pull tag, now closed. What was left was
+the model: a runtime that accepted any string was one careless caller away
+from a prompt, and a remote `OLLAMA_HOST` would have sent the suite, and
+the benchmark's timing, to another machine.
+
+## D-66. The Ollama installer: a pinned release, the published checksum, and a clear refusal
+
+*Supersedes D-29's "a published checksum where Ollama publishes one — it
+does not, today".* It does. Every Ollama release on GitHub carries
+`sha256sum.txt`, listing `Ollama.dmg`, `OllamaSetup.exe` and
+`ollama-linux-<arch>.tar.zst` (checked 2026-09-27 against v0.34.4).
+`ollama.com/download/<file>` answers 307 to
+`github.com/ollama/ollama/releases/latest/download/<file>`, which answers
+302 to `…/releases/download/<tag>/<file>`, which answers 302 to
+`release-assets.githubusercontent.com`.
+
+**Decision.** `internal/backend/ollama/download.go`:
+
+1. follows ollama.com's link only as far as the first hop that names a
+   release tag, and stops there. The version is pinned, so the checksum
+   and the file always come from the same release, never from two
+   "latest"s either side of a publish;
+2. reads that release's `sha256sum.txt` and finds the file's line;
+3. downloads the pinned file into a new `advisor-ollama-*` folder with mode
+   0700 (not a predictable name in a shared temp folder), creating the
+   file exclusively with mode 0600, and hashes it on the way;
+4. deletes it and fails, in words, unless the hash matches.
+
+It fails with a sentence and installs nothing when there is no release in
+the redirect chain (`ErrNoRelease`), no checksum file or no line for the
+file (`ErrNoChecksum`), or a mismatch (`ErrChecksumMismatch`). All of this
+goes through `egress.Client(OllamaDownload)`. `InstallSize` pins the release
+the same way and sends a HEAD request. On Linux, tar also gets
+`--no-same-owner`.
+
+**Consequences.** If Ollama stops publishing checksums, or moves its
+downloads off GitHub, "Install Ollama" stops working and says why, rather
+than running an unchecked file. The fix is then a code change reviewed
+like this one. macOS and Windows still check Ollama's own signature when
+the person opens the installer. The advisor does not add a second
+signature check.
+
+## D-67. The front door: the daemon's own origin, and nothing framed or fetched from elsewhere
+
+**Context.** D-12's Origin check admitted any `http://127.0.0.1:*` or
+`http://localhost:*` origin. Any page served from another port of this
+computer — a developer's dev server, another local web app, anything a
+browser can be pointed at — could `POST` to the API: start a download,
+change settings, remove a model. A cross-site `<img>` or `<script>` could
+also make a GET reach the API, because such requests carry no Origin. No
+response carried anti-framing or content-security headers, so another
+site could frame the app and trick a click on "Download 5 GB".
+
+**Decision** (`internal/server/server.go`, `hostCheck`):
+
+- **Host** stays as D-12 has it: `127.0.0.1` or `localhost` (421).
+- **Origin**, when a browser sends one, must be exactly `"http://" + Host`:
+  the daemon's own origin, the port included. `null` is refused (403).
+- **Sec-Fetch-Site** on `/api/` must be `same-origin` or `none`, or absent
+  (a program that is not a browser). `same-site` (another port on
+  127.0.0.1) and `cross-site` are refused (403). The UI's own pages can be
+  opened from anywhere.
+- **Headers on every response:** a CSP (`default-src 'none'; script-src
+  'self'; style-src 'self'; img-src 'self' data:; connect-src 'self';
+  base-uri 'none'; form-action 'self'; frame-ancestors 'none'; …`, checked
+  in Chromium against every screen with no violation), `X-Frame-Options:
+  DENY`, `nosniff`, `Referrer-Policy: no-referrer`, and same-origin COOP
+  and CORP. No CORS header anywhere, a test says so.
+- Request bodies are capped at 1 MiB (handlers bound their own reads
+  tighter), with `MaxHeaderBytes` and an idle timeout on the server.
+- The Vite dev proxy sets `origin` to the daemon's address beside
+  `changeOrigin`, so `make dev` passes the same check.
+- Links the API passes to the page are someone else's words: the update
+  check keeps GitHub's `html_url` only when it is this project's release
+  page, a Hugging Face result's own link is kept only when it is https,
+  and `PublicFigure` renders a link only for an https URL.
+
+## D-68. Local data: private, deleted on request, and no first contact the person did not make
+
+**Decision.**
+
+- **Private.** `store.Open` creates the data folder with mode 0700 and the
+  database with 0600 (SQLite gives its `-wal` and `-shm` files the same
+  mode), and tightens both on an existing install. It only tightens a
+  folder it made or the default data folder, never one a developer pointed
+  `-data-dir` at. The captured Ollama log is 0600 in a 0700 folder.
+  Windows keeps `%LOCALAPPDATA%` to its user already.
+- **"Delete everything"** (`POST /api/data/delete {"confirm": true}`, and
+  Settings' two-step button that lists what goes and what stays):
+  1. it is refused (409) while a test, a download, an install, a refresh or
+     a watch run is in flight;
+  2. it takes the refresh and watch locks and never gives them back;
+  3. it turns off "start at login" without stopping the process
+     (`autostart.Forget`; on Linux, no `--now`, since the daemon may be the
+     unit's own process);
+  4. it removes the Windows AUMID registration (`winapp.UnregisterIdentity`)
+     and what the runtime adapter wrote (`backend.DataForgetter`: the
+     captured log, any leftover `advisor-ollama-*` download);
+  5. it closes the database and deletes exactly `store.DatabaseFiles`
+     (db, `-wal`, `-shm`, `-journal`), then the folder if it is empty;
+  6. it answers with what was deleted and kept, in words, and the daemon
+     quits (`Server.SetShutdown`). The page clears its own localStorage
+     copy.
+
+  It deletes the files it knows by name, never "the folder and everything
+  in it". Models (Ollama's) and a Linux user-space Ollama (a program) are
+  kept, and the answer says so.
+- **No first contact.** The daily watch (D-57) used to refresh the model
+  list 30 seconds after every start, including the very first one, before
+  the person had clicked anything. That downloaded several megabytes and
+  contacted Hugging Face, Arena and Epoch on an install nobody had used,
+  against product rule 5 and D-54's "the one action that fixes it — fetching
+  the model list, with its cost on the button". A scheduled check now does
+  nothing at all (`ErrNotFetchedYet`) until the list has been fetched once.
+  After that, the watch keeps it current as Settings says.
+
+**What the advisor writes, and where** (the inventory `SECURITY.md` gives
+the customer): the database in the data folder; the captured Ollama log
+under `ollama/logs` there; on Linux, a user-space Ollama under `ollama/`
+there; "start at login" (a LaunchAgent plist, the HKCU Run value, or a
+systemd user unit), only on request; the Windows AUMID display name under
+HKCU; the Ollama installer in a private temp folder while it installs; the
+browser's localStorage copy of the settings. It never stores a model's
+answer text: runs keep timings, counts and resource samples.
+
+## D-69. Dependencies: pinned, audited on every push, and so are the tools that build the release
+
+**Decision.**
+
+- **Go.** `go.mod` pins every module, and `go.sum` holds their hashes. CI's
+  new `security` job runs `go mod verify` and govulncheck (pinned,
+  v1.8.0) for linux, darwin and windows (clean on 2026-09-27).
+  `archtest/deps_test.go` pins the set of direct dependencies to the ones
+  D-22/D-26/D-61 name, and refuses a `replace`.
+- **UI.** `package.json` names exact versions (the lockfile's own). The
+  lockfile resolves every package from `https://registry.npmjs.org/` with
+  a sha512 integrity hash. `ui/.npmrc` sets `save-exact`, `ignore-scripts`
+  (no package runs install-time code) and `audit-level=moderate`. CI runs
+  `npm audit`, which was clean on 2026-09-27. A test holds all of it.
+- **CI.** Every action is pinned to a commit SHA, with its tag in a
+  comment. GoReleaser is pinned (v2.18.2). `appimagetool` is a pinned
+  release (1.9.1) checked against its SHA-256, not the moving `continuous`
+  build. Each packaged file (`.dmg`, installer, AppImage) is uploaded with
+  a `.sha256` beside it, because GoReleaser's `checksums.txt` covers only
+  what GoReleaser built. The release waits for the `security` job.
+
+**Open.** Inno Setup comes from Chocolatey unpinned. The version to pin
+could not be read from the session that made this change. That is one line
+(`choco install innosetup --version …`) for whoever next runs a Windows
+release.
+
+## D-70. Architecture rules the code now enforces
+
+Step 12's full review looked for decisions stated in words and enforced
+by nothing. Beyond D-64 to D-69, these became tests
+(`internal/archtest`, and one UI test):
+
+- **D-11's dependency direction** (`imports_test.go`). A layer number per
+  package (leaves, then hardware/suite/update/hf, then catalog/backend, and
+  so on up to server and cmd), plus the edges D-35 and D-57 rule out
+  (catalog ↛ store/hf, recommend/watch ↛ catalog/external, backend ↛
+  store). A new package fails until it is placed.
+- **D-8** (`model_test.go`). Only the benchmark harness calls a runtime's
+  `Generate`.
+- **CLAUDE.md's copy rule, in the UI** (`ui/src/copy/glossaryRule.test.ts`).
+  A string in `en.ts` that names VRAM, quantization, GGUF, KV cache,
+  context window, tokens/sec or offload must be a label with an `explain`
+  beside it, or a key listed as rendered inside `<Term>`, with the screen
+  that does it. The one bare case (Settings' Advanced help) was rewritten.
+- **Windows notifications.** PowerShell reads ‘ ’ ‚ ‛ as single quotes, and
+  the copy uses ’. `psString` escaped only `'`, so a reason containing
+  "advisor’s" ended the literal and ran the rest as PowerShell. All four are
+  doubled now. `notify-send` gets `--` before its text.

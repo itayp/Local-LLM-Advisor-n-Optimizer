@@ -7,7 +7,7 @@
 //	catalog/external.yaml           internal/catalog/external (build-plan step 9b)
 //	catalog/aliases.yaml            internal/catalog/external (build-plan step 9b)
 //	hardware/gpus.yaml              internal/estimate (build-plan step 5)
-//	bench/suite.yaml, bench/text.txt internal/bench   (build-plan step 6)
+//	bench/suite.yaml, bench/text.txt internal/suite   (build-plan step 6; D-65)
 //	recommend/speed-needs.yaml       internal/recommend (backlog item (i), ARCHITECTURE.md D-58)
 package data
 

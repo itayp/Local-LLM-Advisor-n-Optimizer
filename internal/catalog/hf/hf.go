@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"advisor/internal/catalog/gguf"
+	"advisor/internal/egress"
 )
 
 // DefaultBaseURL is the Hub. The only host this package talks to, with its
@@ -91,10 +92,11 @@ func New(userAgent string) *Client {
 		MaxChunk:    8 << 20,
 		Sleep:       sleepCtx,
 	}
-	c.HTTP = &http.Client{
-		Timeout:       2 * time.Minute,
-		CheckRedirect: c.checkRedirect,
-	}
+	// The transport refuses any host internal/egress/hosts.go does not
+	// list for the model list; checkRedirect below is this package's own,
+	// narrower rule on top of it (Hugging Face's hosts only).
+	c.HTTP = egress.Client(egress.ModelList, 2*time.Minute)
+	c.HTTP.CheckRedirect = c.checkRedirect
 	return c
 }
 
@@ -168,7 +170,10 @@ func (e *StatusError) Error() string {
 func (e *StatusError) Unwrap() error { return e.err }
 
 // allowedHost admits the Hub and its CDNs (cdn-lfs.huggingface.co,
-// cas-bridge.xethub.hf.co, ...) and the host of BaseURL itself (tests).
+// cas-bridge.xethub.hf.co, ...) — the hosts internal/egress/hosts.go lists
+// for the model list, which is the one allow-list (D-64) — and the host of
+// BaseURL itself (tests; the transport would refuse any other in the
+// daemon).
 func (c *Client) allowedHost(host string) bool {
 	host = strings.ToLower(host)
 	if base, err := url.Parse(c.BaseURL); err == nil && strings.EqualFold(base.Host, host) {
@@ -178,12 +183,7 @@ func (c *Client) allowedHost(host string) bool {
 	if i := strings.LastIndex(h, ":"); i >= 0 && !strings.Contains(h[i:], "]") {
 		h = h[:i]
 	}
-	for _, d := range []string{"huggingface.co", "hf.co"} {
-		if h == d || strings.HasSuffix(h, "."+d) {
-			return true
-		}
-	}
-	return false
+	return egress.AllowedHost(egress.ModelList, h)
 }
 
 func (c *Client) checkRedirect(req *http.Request, via []*http.Request) error {
@@ -235,7 +235,9 @@ func (c *Client) do(ctx context.Context, mk func() (*http.Request, error)) (*htt
 		c.count(func(s *Stats) { s.Requests++ })
 		resp, err := c.HTTP.Do(req)
 		if err != nil {
-			if ctx.Err() != nil || errors.Is(err, ErrRedirect) {
+			if ctx.Err() != nil || errors.Is(err, ErrRedirect) || errors.Is(err, egress.ErrNotAllowed) {
+				// Not a network failure to retry: the request was refused
+				// before it left (D-64) or by this package's own rule.
 				return nil, err
 			}
 			if attempt == attempts && transportOnly {

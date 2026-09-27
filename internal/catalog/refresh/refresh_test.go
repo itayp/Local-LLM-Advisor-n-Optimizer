@@ -145,6 +145,9 @@ func (h *hub) serve(w http.ResponseWriter, r *http.Request) {
 func (h *hub) client() *hf.Client {
 	c := hf.New("advisor-test")
 	c.BaseURL = h.srv.URL
+	// The fake is plain HTTP on this computer; the daemon's transport
+	// (internal/egress) would refuse it, which is egress's own test.
+	c.HTTP.Transport = http.DefaultTransport
 	c.MinInterval = 0
 	c.Log = quiet()
 	c.Sleep = func(ctx context.Context, d time.Duration) error { return ctx.Err() }
@@ -497,6 +500,7 @@ func TestRefreshStopsWhenHuggingFaceIsUnreachable(t *testing.T) {
 	_, st, cat := setup(t)
 	client := hf.New("advisor-test")
 	client.BaseURL, client.MinInterval, client.Log = "http://127.0.0.1:1", 0, quiet()
+	client.HTTP.Transport = http.DefaultTransport // nothing listens there; the refusal would be egress's
 	client.Sleep = func(ctx context.Context, d time.Duration) error { return ctx.Err() }
 	rep, err := Run(context.Background(), Options{Catalogue: cat, Store: st, HF: client, Log: quiet(), Trigger: "cli"})
 	if err != nil {

@@ -46,9 +46,19 @@ func ollamaArch() (string, error) {
 	}
 }
 
+// installFile is the archive osInstall downloads, and what InstallSize
+// (install.go) asks about before the button is ever clicked (product rule 5).
+func (b *Backend) installFile() (string, error) {
+	arch, err := ollamaArch()
+	if err != nil {
+		return "", err
+	}
+	return "ollama-linux-" + arch + ".tar.zst", nil
+}
+
 // osInstall is a full user-space install: the official tarball, extracted
 // under this app's own data folder, run later as a child process this
-// daemon supervises (osStart). No sudo, no curl | sh, no system service —
+// daemon supervises (osStart). No sudo, no shell script piped from the network, no system service —
 // CLAUDE.md's Linux convention and product rule 1 ("the user never needs a
 // terminal"). The trade-off, stated where it is made: there is no
 // start-at-boot outside the app, because that would need a system service
@@ -56,22 +66,8 @@ func ollamaArch() (string, error) {
 // who "has heard you can run AI on their own computer... has no idea what
 // a GGUF is" (CLAUDE.md) — never asking for a password wins over surviving
 // a reboot unattended.
-// installURL is where osInstall downloads from, and what InstallSize
-// (install.go) asks about before the button is ever clicked (product rule 5).
-func (b *Backend) installURL() (string, error) {
-	arch, err := ollamaArch()
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("https://ollama.com/download/ollama-linux-%s.tar.zst", arch), nil
-}
-
 func (b *Backend) osInstall(ctx context.Context, progress func(backend.InstallProgress)) error {
-	arch, err := ollamaArch()
-	if err != nil {
-		return err
-	}
-	url, err := b.installURL()
+	file, err := b.installFile()
 	if err != nil {
 		return err
 	}
@@ -80,18 +76,15 @@ func (b *Backend) osInstall(ctx context.Context, progress func(backend.InstallPr
 		return fmt.Errorf("ollama: install: %w", err)
 	}
 	installDir := filepath.Join(dir, "ollama")
-	if err := os.MkdirAll(installDir, 0o755); err != nil {
+	if err := os.MkdirAll(installDir, 0o700); err != nil {
 		return fmt.Errorf("ollama: install: %w", err)
 	}
 
-	archivePath := filepath.Join(os.TempDir(), "ollama-linux-"+arch+".tar.zst")
-	if progress != nil {
-		progress(backend.InstallProgress{Status: "downloading Ollama for Linux (" + arch + ")"})
-	}
-	if _, err := downloadFile(ctx, url, archivePath, progress); err != nil {
+	archivePath, _, err := b.downloader().download(ctx, file, progress)
+	if err != nil {
 		return err
 	}
-	defer os.Remove(archivePath)
+	defer os.RemoveAll(filepath.Dir(archivePath))
 
 	if progress != nil {
 		progress(backend.InstallProgress{Status: "extracting"})
@@ -100,7 +93,10 @@ func (b *Backend) osInstall(ctx context.Context, progress func(backend.InstallPr
 	// ollama.com/linux's manual-install instructions extract it over /usr
 	// for exactly that reason); GNU tar 1.31+ and bsdtar both understand
 	// --zstd, so no separate decompression step or dependency is needed.
-	cmd := exec.CommandContext(ctx, "tar", "--zstd", "-xf", archivePath, "-C", installDir)
+	// The archive was checked against Ollama's published checksum before
+	// this line; tar still refuses absolute and ".." member names and
+	// --no-same-owner keeps it from trying to chown anything.
+	cmd := exec.CommandContext(ctx, "tar", "--zstd", "--no-same-owner", "-xf", archivePath, "-C", installDir)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("ollama: install: extracting %s: %w: %s", archivePath, err, truncate(string(out), 500))
 	}

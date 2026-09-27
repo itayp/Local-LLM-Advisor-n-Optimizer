@@ -71,6 +71,7 @@ arena:
 	}
 	srv.cat.externalFetcher = func(cfg *external.Config) *external.Fetcher {
 		f := external.NewFetcher("advisor-test", cfg.EnabledHosts())
+		f.HTTP.Transport = http.DefaultTransport // the fake sources are plain HTTP on this computer
 		f.MinInterval = 0
 		f.Sleep = func(ctx context.Context, d time.Duration) error { return ctx.Err() }
 		return f

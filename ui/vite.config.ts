@@ -15,8 +15,12 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
-    // Dev only. The daemon binds to 127.0.0.1 and checks the Host header, so
-    // the proxy rewrites Host to the daemon's own address (changeOrigin).
+    // Dev only. The daemon binds to 127.0.0.1, checks the Host header, and
+    // answers a browser only from its own origin (ARCHITECTURE.md D-67), so
+    // the proxy presents each request as the daemon's own: Host rewritten
+    // (changeOrigin) and Origin set to the daemon's address. Sec-Fetch-Site
+    // passes through as the browser sent it — same-origin, since the page
+    // and /api are both this dev server's.
     host: '127.0.0.1',
     port: 5173,
     strictPort: false,
@@ -24,6 +28,7 @@ export default defineConfig({
       '/api': {
         target: `http://127.0.0.1:${daemonPort}`,
         changeOrigin: true,
+        headers: { origin: `http://127.0.0.1:${daemonPort}` },
       },
     },
   },

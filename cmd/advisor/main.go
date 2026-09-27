@@ -141,6 +141,9 @@ func run() int {
 	// (build-plan step 10, item 3 — "that model's card, with 'Run
 	// benchmark'"). Set before the scheduler can possibly fire.
 	srv.SetWatchBaseURL(url)
+	// "Delete everything" (Settings, D-68) ends with the daemon quitting,
+	// the same way Quit in the tray menu or Ctrl-C does.
+	srv.SetShutdown(stop)
 	// A benchmark the previous start was running did not finish: say so in
 	// its row rather than leave it "running" forever.
 	srv.RecoverBenchmarks(ctx)

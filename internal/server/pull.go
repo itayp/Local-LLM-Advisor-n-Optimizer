@@ -135,6 +135,24 @@ func (s *Server) pullBackend(w http.ResponseWriter) (backend.Backend, bool) {
 	return all[0], true // one runtime in the MVP, the same choice bench.go makes
 }
 
+// curatedTag reports whether tag is the Ollama tag of a size the curated
+// catalogue lists now.
+func (s *Server) curatedTag(ctx context.Context, tag string) (bool, error) {
+	if s.store == nil {
+		return false, nil
+	}
+	rows, err := s.store.CatalogModels(ctx, false)
+	if err != nil {
+		return false, err
+	}
+	for _, row := range rows {
+		if row.Model.Present && row.Model.Size.OllamaTag == tag {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (s *Server) handlePullStart(w http.ResponseWriter, r *http.Request) {
 	var req PullRequest
 	dec := json.NewDecoder(io.LimitReader(r.Body, 4<<10))
@@ -146,6 +164,20 @@ func (s *Server) handlePullStart(w http.ResponseWriter, r *http.Request) {
 	tag := strings.TrimSpace(req.OllamaTag)
 	if tag == "" {
 		writeError(w, http.StatusBadRequest, "bad_request", "ollama_tag must not be empty")
+		return
+	}
+	// Only a tag the curated catalogue names is ever handed to the runtime,
+	// which fetches it from its own library: a download is one of the
+	// models the advisor recommends or tests, never free text typed into a
+	// request (product rule 5, ARCHITECTURE.md D-65).
+	curated, err := s.curatedTag(r.Context(), tag)
+	if err != nil {
+		s.log.Error("reading the catalogue", "err", err)
+		writeError(w, http.StatusInternalServerError, "store", "the model list could not be read")
+		return
+	}
+	if !curated {
+		writeError(w, http.StatusBadRequest, "not_in_catalogue", "the advisor only downloads models from its own list; "+tag+" is not on it")
 		return
 	}
 	b, ok := s.pullBackend(w)

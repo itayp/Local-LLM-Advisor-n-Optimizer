@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"advisor/internal/egress"
 )
 
 // Fetcher is the one HTTP client every external source goes through. It is
@@ -112,7 +114,11 @@ func NewFetcher(userAgent string, hosts []string) *Fetcher {
 	for _, h := range hosts {
 		f.hosts[strings.ToLower(h)] = true
 	}
-	f.HTTP = &http.Client{Timeout: 90 * time.Second, CheckRedirect: f.checkRedirect}
+	// The transport refuses any host internal/egress/hosts.go does not list
+	// for public scores (D-64); hosts and checkRedirect are this source's
+	// narrower list on top of it.
+	f.HTTP = egress.Client(egress.PublicScores, 90*time.Second)
+	f.HTTP.CheckRedirect = f.checkRedirect
 	return f
 }
 
@@ -215,7 +221,9 @@ func (f *Fetcher) Get(ctx context.Context, rawURL string, v Validators) (*Respon
 		f.count(func(s *Stats) { s.Requests++ })
 		resp, err := f.HTTP.Do(req)
 		if err != nil {
-			if ctx.Err() != nil || errors.Is(err, ErrHost) {
+			if ctx.Err() != nil || errors.Is(err, ErrHost) || errors.Is(err, egress.ErrNotAllowed) {
+				// Refused before it left, by this source's list or the
+				// advisor's (D-64): nothing to retry.
 				return nil, err
 			}
 			lastErr = err
@@ -374,7 +382,7 @@ func describe(err error, what string) string {
 		return what + " answered that there is nothing at that address"
 	case errors.Is(err, ErrTooLarge):
 		return what + " sent more than the advisor reads; nothing from it was used"
-	case errors.Is(err, ErrHost):
+	case errors.Is(err, ErrHost), errors.Is(err, egress.ErrNotAllowed):
 		return what + " tried to send the advisor to a host it does not contact (" + err.Error() + ")"
 	}
 	return what + ": " + err.Error()

@@ -44,7 +44,7 @@ func benchSuiteSizes() []int {
 		if err != nil {
 			return
 		}
-		for _, p := range suite.Prompts {
+		for _, p := range suite.Prompts() {
 			if n, err := strconv.Atoi(p.ID); err == nil {
 				suitePromptSizes = append(suitePromptSizes, n)
 			}

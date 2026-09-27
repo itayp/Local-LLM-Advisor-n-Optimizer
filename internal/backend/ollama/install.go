@@ -3,9 +3,6 @@ package ollama
 import (
 	"context"
 	"fmt"
-	"io"
-	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,101 +12,18 @@ import (
 	"advisor/internal/backend"
 )
 
-// downloadHost is the only host Install downloads from — CLAUDE.md's
-// Network convention names "the Ollama download host" as an allow-listed
-// destination as of this step; this constant is that host (step 12 moves
-// it into the allow-list file the convention describes).
-const downloadHost = "ollama.com"
-
-// downloadFile fetches rawURL (which must resolve to downloadHost over
-// https) to destPath, reporting progress in bytes.
-//
-// What this verifies, and what it does not: the host and scheme are
-// checked before any request is made, and net/http's default TLS
-// verification is never disabled (CLAUDE.md's proxy guidance: never skip
-// it). It does not check a published checksum. Checked 2026-09-18:
-// ollama.com's /download/Ollama.dmg, /download/OllamaSetup.exe and
-// /download/ollama-linux-<arch>.tar.zst carry no checksum or signature
-// file at a predictable, fixed URL to verify against. That is stated here
-// rather than silently skipped (D-21: unknown is unknown) — if Ollama
-// starts publishing one, this is where to add checking it.
-// checkDownloadURL parses rawURL and refuses anything that is not an https
-// URL on downloadHost — the same check downloadFile and InstallSize both
-// need before making a request.
-func checkDownloadURL(rawURL string) (*url.URL, error) {
-	u, err := url.Parse(rawURL)
-	if err != nil {
-		return nil, fmt.Errorf("ollama: install: bad URL %q: %w", rawURL, err)
-	}
-	if u.Scheme != "https" {
-		return nil, fmt.Errorf("ollama: install: refusing a non-https URL: %s", rawURL)
-	}
-	if u.Hostname() != downloadHost {
-		return nil, fmt.Errorf("ollama: install: refusing to download from %q, only %q is allowed", u.Hostname(), downloadHost)
-	}
-	return u, nil
-}
-
-func downloadFile(ctx context.Context, rawURL, destPath string, progress func(backend.InstallProgress)) (int64, error) {
-	if _, err := checkDownloadURL(rawURL); err != nil {
-		return 0, err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
-	if err != nil {
-		return 0, err
-	}
-	// No client timeout: an installer download can be a few hundred MB on a
-	// slow line; ctx is still the way to cancel it.
-	resp, err := (&http.Client{}).Do(req)
-	if err != nil {
-		return 0, fmt.Errorf("ollama: install: downloading %s: %w", rawURL, err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return 0, fmt.Errorf("ollama: install: %s: %s", rawURL, resp.Status)
-	}
-
-	f, err := os.Create(destPath)
-	if err != nil {
-		return 0, fmt.Errorf("ollama: install: creating %s: %w", destPath, err)
-	}
-	defer f.Close()
-
-	total := resp.ContentLength
-	var written int64
-	buf := make([]byte, 256*1024)
-	for {
-		n, rerr := resp.Body.Read(buf)
-		if n > 0 {
-			if _, werr := f.Write(buf[:n]); werr != nil {
-				return written, fmt.Errorf("ollama: install: writing %s: %w", destPath, werr)
-			}
-			written += int64(n)
-			if progress != nil {
-				progress(backend.InstallProgress{Status: "downloading", Completed: written, Total: total})
-			}
-		}
-		if rerr == io.EOF {
-			break
-		}
-		if rerr != nil {
-			return written, fmt.Errorf("ollama: install: downloading %s: %w", rawURL, rerr)
-		}
-	}
-	return written, nil
-}
-
 // Install downloads and sets up Ollama itself. Product rule 5: this only
 // ever runs from a UI button that already told the user what will happen;
-// Install changes nothing on the machine until it is called. The per-OS
-// approach is osInstall (install_darwin.go, install_windows.go,
-// install_linux.go): on macOS and Windows it downloads the official
-// installer and opens it — the user still clicks through it, same as
-// downloading it by hand — and Detect() picks up the result afterwards; on
-// Linux it is a full user-space install (no sudo, no curl | sh, no system
-// service), because there is no installer to click through in the first
-// place.
+// Install changes nothing on the machine until it is called. The download
+// is download.go's: pinned to one release, over HTTPS to Ollama's own
+// hosts only, and checked against the SHA-256 Ollama publishes for it
+// before anything is opened or unpacked (D-66). The per-OS approach is
+// osInstall (install_darwin.go, install_windows.go, install_linux.go): on
+// macOS and Windows it opens the checked installer — the user still clicks
+// through it, same as downloading it by hand — and Detect() picks up the
+// result afterwards; on Linux it is a full user-space install (no sudo, no
+// shell script piped from the network, no system service), because there
+// is no installer to click through in the first place.
 func (b *Backend) Install(ctx context.Context, progress func(backend.InstallProgress)) error {
 	return b.osInstall(ctx, progress)
 }
@@ -124,34 +38,29 @@ func (b *Backend) Start(ctx context.Context) error {
 
 // InstallSize reports the size of the installer/archive Install would
 // download, before Install is ever called — product rule 5: the button
-// says what it will cost before it is clicked. It asks with a HEAD request
-// (the same host-and-scheme check as the download itself; no body is
-// fetched) and reports known == false rather than a guess when the server
-// does not answer with a Content-Length (D-21).
+// says what it will cost before it is clicked. It pins the release the
+// way Install does (download.go) and asks for the file's size with a HEAD
+// request; no body is fetched. known is false rather than a guess when the
+// server states no length (D-21).
 func (b *Backend) InstallSize(ctx context.Context) (int64, bool, error) {
-	rawURL, err := b.installURL()
+	file, err := b.installFile()
 	if err != nil {
 		return 0, false, err
 	}
-	if _, err := checkDownloadURL(rawURL); err != nil {
-		return 0, false, err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, rawURL, nil)
+	d := b.downloader()
+	r, err := d.resolve(ctx, file)
 	if err != nil {
 		return 0, false, err
 	}
-	resp, err := (&http.Client{}).Do(req)
-	if err != nil {
-		return 0, false, fmt.Errorf("ollama: install size: %s: %w", rawURL, err)
+	return d.size(ctx, r)
+}
+
+// downloader is Install's network side (download.go); tests replace it.
+func (b *Backend) downloader() *downloader {
+	if b.newDownloader != nil {
+		return b.newDownloader()
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return 0, false, fmt.Errorf("ollama: install size: %s: %s", rawURL, resp.Status)
-	}
-	if resp.ContentLength <= 0 {
-		return 0, false, nil
-	}
-	return resp.ContentLength, true, nil
+	return newDownloader()
 }
 
 // dataDir mirrors store.DefaultDataDir's per-OS convention
@@ -186,6 +95,24 @@ func dataDir() (string, error) {
 	}
 }
 
+// serveEnv is the environment "ollama serve" starts with when this app
+// starts it: the user's own, except that OLLAMA_HOST is the loopback
+// address the advisor will talk to. An Ollama this app starts listens on
+// this computer only — the same rule the advisor holds itself to (product
+// rule 7) — whatever OLLAMA_HOST said; an Ollama the person starts
+// themselves is theirs to configure.
+func serveEnv(environ []string, base string) []string {
+	hostPort := strings.TrimPrefix(strings.TrimPrefix(base, "http://"), "https://")
+	out := make([]string, 0, len(environ)+1)
+	for _, kv := range environ {
+		if k, _, _ := strings.Cut(kv, "="); strings.EqualFold(k, "OLLAMA_HOST") {
+			continue
+		}
+		out = append(out, kv)
+	}
+	return append(out, "OLLAMA_HOST="+hostPort)
+}
+
 // startServeProcess launches "<binary> serve" detached from this process,
 // with stdout/stderr captured to a log file under this daemon's data
 // folder. It is shared by every OS's osStart: Ollama's `serve` subcommand
@@ -202,11 +129,11 @@ func (b *Backend) startServeProcess(ctx context.Context) error {
 		return fmt.Errorf("ollama: start: %w", err)
 	}
 	logDir := filepath.Join(dir, "ollama", "logs")
-	if err := os.MkdirAll(logDir, 0o755); err != nil {
+	if err := os.MkdirAll(logDir, 0o700); err != nil {
 		return fmt.Errorf("ollama: start: %w", err)
 	}
 	logPath := filepath.Join(logDir, "server-supervised.log")
-	logFile, err := os.Create(logPath)
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
 	if err != nil {
 		return fmt.Errorf("ollama: start: opening %s: %w", logPath, err)
 	}
@@ -214,7 +141,7 @@ func (b *Backend) startServeProcess(ctx context.Context) error {
 	cmd := exec.Command(path, "serve")
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
-	cmd.Env = os.Environ()
+	cmd.Env = serveEnv(os.Environ(), b.host())
 	if err := cmd.Start(); err != nil {
 		logFile.Close()
 		return fmt.Errorf("ollama: start: launching %s serve: %w", path, err)
@@ -228,4 +155,42 @@ func (b *Backend) startServeProcess(ctx context.Context) error {
 	}()
 	b.setSupervisedLog(logPath)
 	return nil
+}
+
+// ForgetData removes what this adapter wrote for the advisor (D-68): the
+// log it captured from an Ollama it started, and any installer download
+// an interrupted install left in the temporary folder. The copy of Ollama
+// itself that a Linux install put under the data folder is a program the
+// person asked for, not data about them: it is kept, and said so. Models
+// are Ollama's, in Ollama's folder, and are not touched.
+func (b *Backend) ForgetData() (removed, kept []string, err error) {
+	var errs []error
+	if dir, derr := dataDir(); derr == nil {
+		logs := filepath.Join(dir, "ollama", "logs")
+		if _, serr := os.Stat(logs); serr == nil {
+			if rerr := os.RemoveAll(logs); rerr != nil {
+				errs = append(errs, rerr)
+			} else {
+				removed = append(removed, "the log of the Ollama this app started ("+logs+")")
+			}
+		}
+		if _, serr := os.Stat(filepath.Join(dir, "ollama", "bin")); serr == nil {
+			kept = append(kept, "the copy of Ollama this app installed ("+filepath.Join(dir, "ollama")+"): it is a program, not data about you — remove that folder to uninstall it")
+		} else {
+			_ = os.Remove(filepath.Join(dir, "ollama")) // only if empty
+		}
+	}
+	matches, _ := filepath.Glob(filepath.Join(os.TempDir(), tempDirPattern))
+	for _, m := range matches {
+		if rerr := os.RemoveAll(m); rerr != nil {
+			errs = append(errs, rerr)
+		} else {
+			removed = append(removed, "a downloaded Ollama installer ("+m+")")
+		}
+	}
+	b.setSupervisedLog("")
+	if len(errs) > 0 {
+		err = fmt.Errorf("ollama: %v", errs)
+	}
+	return removed, kept, err
 }
