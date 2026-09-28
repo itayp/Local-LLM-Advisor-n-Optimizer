@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { api } from '../api/client'
 import type { FileFit, ModelDetailResponse } from '../api/types'
+import { CopyButton } from '../components/CopyButton'
 import { Figure } from '../components/Figure'
 import { FetchProgress, PublicInBackground, useCatalogStatus } from '../components/ModelList'
 import { formatDay, PublicFigure } from '../components/PublicFigure'
@@ -85,7 +86,7 @@ export function ModelDetail() {
         {detail.released_at ? c.released(formatDay(detail.released_at)) : null}
       </p>
       <p className="screen__note">
-        {c.nameInOllama}: <code>{detail.pull_name}</code>
+        {c.nameInOllama}: <code>{detail.pull_name}</code> <CopyButton value={detail.pull_name} />
       </p>
 
       <div className="detail-blocks">
@@ -101,7 +102,9 @@ export function ModelDetail() {
               <p className="screen__note">
                 {p.caveatBefore}
                 <Term id="quantization" />
-                {p.caveatAfter} {p.whatIsIt} <Term id="public_benchmark" />?
+                {p.caveatAfter} {p.whatIsIt}
+                <Term id="public_benchmark" />
+                {p.whatIsItSuffix}
               </p>
             </>
           )}

@@ -26,8 +26,17 @@ export function Purposes({
           {order.map((p) => (
             <li key={p}>
               <label>
-                <input type="checkbox" checked={purposes.includes(p)} onChange={() => toggle(p)} /> {c.labels[p]}
+                <input
+                  type="checkbox"
+                  checked={purposes.includes(p)}
+                  aria-describedby={`onboarding-purpose-help-${p}`}
+                  onChange={() => toggle(p)}
+                />{' '}
+                {c.labels[p]}
               </label>
+              <span id={`onboarding-purpose-help-${p}`} className="purposes__description screen__note">
+                {c.descriptions[p]}
+              </span>
             </li>
           ))}
         </ul>

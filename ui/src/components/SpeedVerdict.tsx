@@ -72,7 +72,7 @@ export function SpeedWithVerdict({ rate, verdicts, compact }: { rate: Rate; verd
       ) : (
         <>
           {' '}
-          <Term id="tokens_per_sec" />
+          <Term id="tokens_per_sec" bare />
         </>
       )}
     </>

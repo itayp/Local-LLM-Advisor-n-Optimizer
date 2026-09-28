@@ -585,3 +585,16 @@ describe('Getting', () => {
     expect(onDone).not.toHaveBeenCalled()
   })
 })
+
+describe('Purposes, described', () => {
+  it('says what each purpose is for, under its checkbox, and names the picture purpose for what it does', () => {
+    render(<Purposes purposes={['chat']} onChange={() => undefined} onNext={() => undefined} />)
+    for (const [p, label] of Object.entries(en.onboarding.purposes.labels)) {
+      const box = screen.getByRole('checkbox', { name: label })
+      expect(box).toHaveAccessibleDescription(en.onboarding.purposes.descriptions[p as keyof typeof en.onboarding.purposes.descriptions])
+    }
+    expect(screen.getByRole('checkbox', { name: 'Understanding pictures and screenshots' })).toBeInTheDocument()
+    expect(screen.getByText(/It does not create images\./)).toBeInTheDocument()
+    expect(screen.queryByText(/Looking at images/)).toBeNull()
+  })
+})

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import type { ChatApp } from '../api/types'
+import { CopyButton } from '../components/CopyButton'
 import { en } from '../copy/en'
 
 const c = en.onboarding.useit
@@ -14,7 +15,6 @@ const c = en.onboarding.useit
  */
 export function UseIt({ modelName, onFinish }: { modelName: string; onFinish: () => void }) {
   const [apps, setApps] = useState<ChatApp[] | null>(null)
-  const [copied, setCopied] = useState(false)
   const [finishing, setFinishing] = useState(false)
 
   useEffect(() => {
@@ -25,16 +25,6 @@ export function UseIt({ modelName, onFinish }: { modelName: string; onFinish: ()
       .catch(() => undefined)
     return () => ac.abort()
   }, [])
-
-  const copy = () => {
-    navigator.clipboard
-      ?.writeText(modelName)
-      .then(() => {
-        setCopied(true)
-        window.setTimeout(() => setCopied(false), 2000)
-      })
-      .catch(() => undefined)
-  }
 
   const finish = () => {
     setFinishing(true)
@@ -53,9 +43,7 @@ export function UseIt({ modelName, onFinish }: { modelName: string; onFinish: ()
       <p className="screen__lead">{c.lead}</p>
       <p className="onboarding__model-name">
         <code data-testid="onboarding-model-name">{modelName}</code>{' '}
-        <button type="button" className="link-button" onClick={copy}>
-          {copied ? c.copied : c.copy}
-        </button>
+        <CopyButton value={modelName} />
       </p>
       {apps === null ? (
         <p className="screen__note" role="status">

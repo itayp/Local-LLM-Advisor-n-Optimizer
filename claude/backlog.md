@@ -11,7 +11,7 @@ the detail.
 
 | Item | Status | Goes to |
 |---|---|---|
-| a. Copy button on every model name | Open (only onboarding's "Use it" has one) | Phase 2, P2-1 |
+| a. Copy button on every model name | Done (P2-1); Compare's column heads and a Benchmarks result card's title still show a bare name | — |
 | b. What a speed is good for | Done, closed by (i) | — |
 | c. Multiple GPUs: setup help, and checking Ollama uses the expected one | Open, needs a multi-GPU machine | Phase 3, P3-3 |
 | d. llama.cpp pools GPUs on the Mac Pro | Open, waiting for Itay's notes | Phase 3, P3-2 / P3-3 |
@@ -25,8 +25,8 @@ the detail.
 | l. Sizes on the Benchmarks picker | Open | Phase 2, P2-5 |
 | m. The 9–18 GB gap in the catalogue | Open | Phase 2, P2-6 |
 | n. Pick the drive, check space before downloads | Open | Phase 2, P2-3 and P2-7 |
-| o. "Looking at images" is unclear | Open | Phase 2, P2-1 |
-| p. Explainer breaks its sentence | Open | Phase 2, P2-1 |
+| o. "Looking at images" is unclear | Done (P2-1); the daemon's own "vision" wording is left, see the section | Phase 2, P2-6 (Go copy) |
+| p. Explainer breaks its sentence | Done (P2-1) | — |
 | q. Any model from Hugging Face, or a local file | Open, needs a decision | Phase 2, P2-2, P2-8 to P2-10 |
 | r. From a chosen model to an open chat | Open, needs a decision | Phase 2, P2-2 and P2-4 |
 
@@ -44,6 +44,14 @@ model's *exact* name is shown and might be pasted somewhere — the
 Benchmarks model picker and its history rows, the Models screen (both step
 8), and Recommend's cards (`<code>{r.pull_name}</code>`, step 5, currently
 just text). Step 8's own scope; no API change needed.
+
+**Done (2026-09-29, P2-1).** `ui/src/components/CopyButton.tsx` (strings in
+`en.copyButton`; "Copied" for two seconds; the old selection-based copy when
+the clipboard is refused, then a quiet muted note, never an alert). On
+Recommend's cards, the model's own page, the Benchmarks picker (beside the
+select, for the chosen model) and history rows, the Models table, and
+onboarding's "Use it". Not covered: the Compare table's column heads and the
+title of a Benchmarks result card, which also print the bare name.
 
 ## b. An explainer next to tok/s for what a speed is actually good for — done, closed by (i)
 
@@ -614,6 +622,24 @@ one-line description with examples, and a note that it only helps if the
 chat app lets you attach an image (Ollama's app does). Also be honest that
 small models misread dense documents. Applies to both lists in
 `ui/src/copy/en.ts` (Recommend and onboarding).
+
+**Done (2026-09-29, P2-1).** Both labels now read "Understanding pictures and
+screenshots"; every purpose has a one-line description under its checkbox
+(written once, `purposeDescriptions` in `en.ts`, linked to the checkbox with
+`aria-describedby`); the picture one gives the examples and the two limits
+(attach the picture in the chat app; it does not create images). The UI copy
+never says "vision" (`glossaryRule.test.ts` holds it), so no glossary entry.
+**Left:** two strings the daemon sends still say it — the watch notification's
+"Strong vision benchmark results" (`internal/watch/reasons.go`,
+`publicPurposeWords`) and the Advanced note "includes the model's vision
+encoder" (`internal/estimate/fit.go`). Go copy, outside a UI step; it wants
+"pictures" / "image reader" ("its image reader" is already what
+`weights.explain` says). The honest note about small models misreading dense
+documents is not in the line yet.
+Seen in `verify.command`'s output (2026-09-29): the cards' reasons still say
+"looking at images" (`internal/recommend/reasons.go` `purposeWords`; also
+`external/public.go`'s "at reading pictures"), so the label and the reasons
+now name the purpose differently. Same fix, same Go step.
 
 ## p. Garbled context explainer: "…keep in mind at once. in mind at once"
 

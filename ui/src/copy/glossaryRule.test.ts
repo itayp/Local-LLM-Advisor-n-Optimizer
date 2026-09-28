@@ -62,3 +62,46 @@ describe('the copy rule', () => {
     }
   })
 })
+
+describe('the picture purpose', () => {
+  // "Vision" is the field's word, not the customer's: the purpose is named for
+  // what it does (backlog o). If the word ever comes back into a string the
+  // person reads, it needs a glossary entry and a <Term> — this test is the
+  // reminder.
+  it('never shows the word "vision" in the UI copy', () => {
+    const found: string[] = []
+    const walk = (v: unknown, path: string) => {
+      if (typeof v === 'string') {
+        if (/\bvision\b/i.test(v)) found.push(`${path} = ${JSON.stringify(v)}`)
+      } else if (typeof v === 'function') {
+        try {
+          const r = (v as (...a: unknown[]) => unknown)('x', 'y', 'z', 'w')
+          if (typeof r === 'string' && /\bvision\b/i.test(r)) found.push(`${path}() = ${JSON.stringify(r)}`)
+        } catch {
+          /* not a plain string builder */
+        }
+      } else if (v && typeof v === 'object') {
+        for (const [k, x] of Object.entries(v)) walk(x, `${path}.${k}`)
+      }
+    }
+    walk(en, 'en')
+    expect(found).toEqual([])
+  })
+
+  it('every purpose has a label and a one-line description, in both lists', () => {
+    const keys = ['chat', 'writing', 'coding', 'reasoning', 'long_context', 'vision', 'agentic'] as const
+    for (const k of keys) {
+      for (const text of [en.screens.recommend.purposes[k], en.onboarding.purposes.labels[k]]) expect(text.length).toBeGreaterThan(3)
+      for (const text of [en.screens.recommend.purposeDescriptions[k], en.onboarding.purposes.descriptions[k]]) {
+        expect(text.length).toBeGreaterThan(10)
+        expect(text).not.toContain('\n')
+        expect(text).toMatch(/[.!]$/)
+      }
+    }
+    expect(en.screens.recommend.purposes.vision).toBe('Understanding pictures and screenshots')
+    expect(en.onboarding.purposes.labels.vision).toBe(en.screens.recommend.purposes.vision)
+    expect(en.onboarding.purposes.descriptions.vision).toBe(
+      'Describe a photo, read the text in a screenshot or scanned page, explain a chart. You attach the picture in your chat app. It does not create images.',
+    )
+  })
+})

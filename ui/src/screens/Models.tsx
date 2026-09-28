@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { api } from '../api/client'
 import type { BackendInfo, FitCategory, HardwareResponse, InstalledModel, Rate } from '../api/types'
+import { CopyButton } from '../components/CopyButton'
 import { Figure, formatBytes } from '../components/Figure'
 import { ModelList } from '../components/ModelList'
 import { Term } from '../components/Term'
@@ -179,7 +180,7 @@ export function Models() {
                 return (
                   <tr key={key(m)}>
                     <td>
-                      {m.name}
+                      {m.name} <CopyButton value={m.name} />
                       {m.catalog_model_id ? (
                         <>
                           {' '}

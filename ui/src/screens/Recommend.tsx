@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { api } from '../api/client'
 import type { Purpose, Recommendation, RecommendResult } from '../api/types'
+import { CopyButton } from '../components/CopyButton'
 import { Figure, formatBytes } from '../components/Figure'
 import { ModelList } from '../components/ModelList'
 import { PublicLine } from '../components/PublicFigure'
@@ -96,8 +97,17 @@ export function Recommend() {
           {purposeOrder.map((p) => (
             <li key={p}>
               <label>
-                <input type="checkbox" checked={purposes.includes(p)} onChange={() => toggle(p)} /> {c.purposes[p]}
+                <input
+                  type="checkbox"
+                  checked={purposes.includes(p)}
+                  aria-describedby={`purpose-help-${p}`}
+                  onChange={() => toggle(p)}
+                />{' '}
+                {c.purposes[p]}
               </label>
+              <span id={`purpose-help-${p}`} className="purposes__description screen__note">
+                {c.purposeDescriptions[p]}
+              </span>
             </li>
           ))}
         </ul>
@@ -191,7 +201,7 @@ function Card({ r, pathSource, advanced }: { r: Recommendation; pathSource: Reco
 
       <p className="card__confidence">{r.confidence_why}</p>
       <p className="screen__note">
-        {c.keepsInMind(words.toLocaleString('en-US'))} · {c.nameInOllama}: <code>{r.pull_name}</code>
+        {c.keepsInMind(words.toLocaleString('en-US'))} · {c.nameInOllama}: <code>{r.pull_name}</code> <CopyButton value={r.pull_name} />
       </p>
 
       <PublicLine entry={r.public} />

@@ -92,7 +92,7 @@ export function Home() {
         <dl className="card__figures">
           <dt>{c.yourModel}</dt>
           <dd>
-            {bestRun.config.model} — {c.modelMeasured} <Figure rate={bestRun.generation_tps} /> <Term id="tokens_per_sec" />
+            {bestRun.config.model} — {c.modelMeasured} <Figure rate={bestRun.generation_tps} /> <Term id="tokens_per_sec" bare />
           </dd>
         </dl>
       ) : null}

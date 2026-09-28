@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { ApiRequestError, api } from '../api/client'
 import type { BenchModel, BenchModelsResponse, BenchPlan, BenchProgress, BenchRun, PullStatus } from '../api/types'
+import { CopyButton } from '../components/CopyButton'
 import { Figure } from '../components/Figure'
 import { SpeedWithVerdict } from '../components/SpeedVerdict'
 import { ModelList } from '../components/ModelList'
@@ -315,29 +316,32 @@ export function Benchmarks() {
 
       {list !== null && !nothing ? (
         <form className="bench-form" onSubmit={(e) => e.preventDefault()}>
-          <label>
-            <span className="setting__label">{c.model}</span>
-            <select value={model} disabled={locked} onChange={(e) => setModel(e.target.value)}>
-              {list.installed.length > 0 ? (
-                <optgroup label={c.groupInstalled}>
-                  {list.installed.map((m) => (
-                    <option key={m.name} value={m.name}>
-                      {c.optionInstalled(m.name, m.display_name)}
-                    </option>
-                  ))}
-                </optgroup>
-              ) : null}
-              {list.available.length > 0 ? (
-                <optgroup label={c.groupAvailable}>
-                  {list.available.map((m) => (
-                    <option key={m.name} value={m.name}>
-                      {c.optionAvailable(m.display_name ?? m.name, formatDownload(m.download_bytes ?? 0))}
-                    </option>
-                  ))}
-                </optgroup>
-              ) : null}
-            </select>
-          </label>
+          <div className="bench-form__model">
+            <label>
+              <span className="setting__label">{c.model}</span>
+              <select value={model} disabled={locked} onChange={(e) => setModel(e.target.value)}>
+                {list.installed.length > 0 ? (
+                  <optgroup label={c.groupInstalled}>
+                    {list.installed.map((m) => (
+                      <option key={m.name} value={m.name}>
+                        {c.optionInstalled(m.name, m.display_name)}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
+                {list.available.length > 0 ? (
+                  <optgroup label={c.groupAvailable}>
+                    {list.available.map((m) => (
+                      <option key={m.name} value={m.name}>
+                        {c.optionAvailable(m.display_name ?? m.name, formatDownload(m.download_bytes ?? 0))}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
+              </select>
+            </label>
+            {model ? <CopyButton value={model} /> : null}
+          </div>
           {selected?.installed ? (
             <label>
               <span className="setting__label">{c.context}</span>
@@ -719,7 +723,9 @@ function History({
                     />
                   </td>
                   <td>{when}</td>
-                  <td>{r.config.model}</td>
+                  <td>
+                    {r.config.model} <CopyButton value={r.config.model} />
+                  </td>
                   <td>{c.contextOption(words(r.config.num_ctx))}</td>
                   <td>
                     {r.generation_tps ? <SpeedWithVerdict rate={r.generation_tps} verdicts={r.verdicts} compact /> : c.status[r.status]}

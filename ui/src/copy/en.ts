@@ -26,6 +26,21 @@ function waitWords(seconds: number): string {
   return `${Math.round(seconds / 60)} minutes`
 }
 
+// The one line under each purpose's checkbox, on Recommend and in onboarding
+// (the same words in both, so they are written once). Plain words: none of
+// the glossary's terms, and — for the picture purpose — what it does, one
+// example of each kind, and the two limits people trip on (backlog o).
+const purposeDescriptions = {
+  chat: 'Ask questions, get things explained, talk an idea through.',
+  writing: 'Draft, rewrite and tidy emails, essays and notes.',
+  coding: 'Write, explain and fix code.',
+  reasoning: 'Math, logic and puzzles that need step-by-step thinking. These models take longer to answer.',
+  long_context: 'Summarize a long report, contract or book, or ask questions about it.',
+  vision:
+    'Describe a photo, read the text in a screenshot or scanned page, explain a chart. You attach the picture in your chat app. It does not create images.',
+  agentic: 'For apps that let a model use tools, like searching your files or running commands, one step after another.',
+} as const
+
 export const en = {
   app: {
     title: 'Local LLM Advisor',
@@ -51,7 +66,8 @@ export const en = {
     none: 'No public scores for this size yet. Other people\'s results for a bigger or smaller size of the same model are not shown here: they would say little about this one.',
     caveatBefore: 'These scores are for the original model as its maker published it. What Ollama downloads is a compressed copy (its ',
     caveatAfter: '), which may score a little lower.',
-    whatIsIt: 'What is a',
+    whatIsIt: 'Scores like these come from a ',
+    whatIsItSuffix: '.',
     notScored: 'Reported by the model\'s maker: shown, but not used to rank models, because makers test their own models in different ways.',
     advanced: 'Details',
   },
@@ -66,6 +82,21 @@ export const en = {
       const s = Math.floor(raw)
       return s < 60 ? `${s} s so far` : `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, '0')} s so far`
     },
+  },
+  // <Term> (components/Term.tsx): the "?" beside a technical word, and the
+  // name a screen reader gives it.
+  term: {
+    whatIs: (term: string) => `What is ${term}?`,
+  },
+  // <CopyButton> (components/CopyButton.tsx), beside every exact model name.
+  // `label` is what the button says; `labelFor` is its spoken name, so a
+  // list of them is not a list of identical "Copy"s; `failed` is the quiet
+  // fallback when the clipboard is refused (the name stays selectable).
+  copyButton: {
+    label: 'Copy',
+    labelFor: (name: string) => `Copy the name ${name}`,
+    copied: 'Copied',
+    failed: 'Could not copy — select the name and copy it.',
   },
   // The tokens_per_sec glossary explainer's extra content
   // (components/Term.tsx, GET /api/speed-needs): what a speed is good
@@ -297,9 +328,10 @@ export const en = {
         coding: 'Writing and fixing code',
         reasoning: 'Working through hard problems',
         long_context: 'Reading long documents',
-        vision: 'Looking at images',
+        vision: 'Understanding pictures and screenshots',
         agentic: 'Multi-step tasks with tools',
       },
+      purposeDescriptions,
       loading: 'Working out what fits this computer…',
       failed: (message: string) => `The advisor could not work out its recommendations: ${message}`,
       pickOne: 'Pick at least one thing above.',
@@ -620,9 +652,10 @@ export const en = {
         coding: 'Writing and fixing code',
         reasoning: 'Working through hard problems',
         long_context: 'Reading long documents',
-        vision: 'Looking at images',
+        vision: 'Understanding pictures and screenshots',
         agentic: 'Multi-step tasks with tools',
       },
+      descriptions: purposeDescriptions,
     },
     recommend: {
       title: 'Recommendations',
@@ -668,8 +701,6 @@ export const en = {
     useit: {
       title: 'Use it',
       lead: "Setup is done. Here's the exact name to give it in a chat app:",
-      copy: 'Copy',
-      copied: 'Copied',
       checkingApps: 'Looking for chat apps on this computer…',
       foundLead: 'Found on this computer:',
       noneFoundLead: 'No chat app was found on this computer yet. Any of these can talk to the model above:',

@@ -338,6 +338,23 @@ describe('Recommend', () => {
     expect(within(item).getByRole('link', { name: c.test })).toHaveAttribute('href', '/benchmarks?model=qwen3.5%3A9b')
   })
 
+  it('puts a copy button beside the exact name on each card', async () => {
+    serve(() => result())
+    open()
+    const item = await screen.findByRole('article', { name: 'Qwen3.5 9B' })
+    expect(within(item).getByRole('button', { name: en.copyButton.labelFor('qwen3.5:9b') })).toBeInTheDocument()
+  })
+
+  it('describes every purpose under its checkbox, and names the picture one for what it does', async () => {
+    serve(() => result())
+    open()
+    for (const [p, label] of Object.entries(c.purposes)) {
+      expect(screen.getByRole('checkbox', { name: label })).toHaveAccessibleDescription(c.purposeDescriptions[p as keyof typeof c.purposeDescriptions])
+    }
+    expect(screen.getByRole('checkbox', { name: 'Understanding pictures and screenshots' })).toBeInTheDocument()
+    expect(screen.queryByText(/Looking at images/)).toBeNull()
+  })
+
   it('shows the daemon\'s message when the request fails', async () => {
     serve(() => ({ status: 503, code: 'detecting', message: 'still reading this computer; try again in a moment' }))
     open()
