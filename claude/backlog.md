@@ -4,6 +4,32 @@ Small, concrete asks that surfaced from actually using the app, not tied to
 one build-plan step. Not a replacement for BUILD_PLAN.md/PRD's own phase
 lists — this is where a specific, dated ask lives until a step picks it up.
 
+## Status (2026-09-29)
+
+Where every item stands and which plan picks it up. The item's own section has
+the detail.
+
+| Item | Status | Goes to |
+|---|---|---|
+| a. Copy button on every model name | Open (only onboarding's "Use it" has one) | Phase 2, P2-1 |
+| b. What a speed is good for | Done, closed by (i) | — |
+| c. Multiple GPUs: setup help, and checking Ollama uses the expected one | Open, needs a multi-GPU machine | Phase 3, P3-3 |
+| d. llama.cpp pools GPUs on the Mac Pro | Open, waiting for Itay's notes | Phase 3, P3-2 / P3-3 |
+| e. Progress while fetching the model list | Done (D-54) | — |
+| f. Top picks with no public scores | Open, parked until the catalogue grows | Phase 2, P2-6 (the engine bias doesn't depend on the catalogue) |
+| g. How to run a model after picking it | Superseded by (r) | Phase 2, P2-4 |
+| h. llama.cpp / LM Studio backends | Open | Phase 3 (P2-2 prepares the interface; P2-10 reads LM Studio's models) |
+| i. Speed a purpose needs | Built (D-58, D-59); the fleet trial is still to do | Phase 2, P2-11 (the trial) |
+| j. Speed verdict next to every speed | Part 1 done; Models screen, per-prompt rates, Compare, CLI left | Phase 2, P2-5 |
+| k. Windows notifications permission | Resolved in code (D-63); a real toast not yet seen on Windows | Step 11's gate (a real installer run), not a phase |
+| l. Sizes on the Benchmarks picker | Open | Phase 2, P2-5 |
+| m. The 9–18 GB gap in the catalogue | Open | Phase 2, P2-6 |
+| n. Pick the drive, check space before downloads | Open | Phase 2, P2-3 and P2-7 |
+| o. "Looking at images" is unclear | Open | Phase 2, P2-1 |
+| p. Explainer breaks its sentence | Open | Phase 2, P2-1 |
+| q. Any model from Hugging Face, or a local file | Open, needs a decision | Phase 2, P2-2, P2-8 to P2-10 |
+| r. From a chosen model to an open chat | Open, needs a decision | Phase 2, P2-2 and P2-4 |
+
 ## a. A copy button anywhere a model name is shown
 
 **From:** Itay, testing step 7 (2026-09-20), on the Benchmarks screen
@@ -19,7 +45,7 @@ Benchmarks model picker and its history rows, the Models screen (both step
 8), and Recommend's cards (`<code>{r.pull_name}</code>`, step 5, currently
 just text). Step 8's own scope; no API change needed.
 
-## b. An explainer next to tok/s for what a speed is actually good for
+## b. An explainer next to tok/s for what a speed is actually good for — done, closed by (i)
 
 **From:** Itay, same session.
 
@@ -168,7 +194,7 @@ whatever the catalogue holds.
 5. Read pull-request eval results labelled "unreviewed" (gate item 3). This
    adds shown values for Gemma 4 E4B/12B and Qwen3.5 4B, but nothing scored.
 
-## g. How to run: UI guidance after model selection, or button to start Ollama
+## g. How to run: UI guidance after model selection, or button to start Ollama — superseded by (r), phase 2 step P2-4
 
 **From:** Itay, in-app onboarding feedback (2026-09-25).
 
@@ -536,3 +562,113 @@ in that size band. The decision on which families/sizes to add should come from:
 Scoped as: a research task to identify 2–3 candidate models in the 9–18 GB range
 that meet the above criteria, then a catalogue PR to add them. Assign once product
 prioritizes recommendation quality on mid-size machines.
+
+---
+
+The five items below (n–r) are Itay's remarks of 2026-09-29. They are
+scheduled in `BUILD_PLAN_PHASE2.md`, which says which step picks up each one.
+
+## n. Models are big: pick the drive before the first download, and check space before every one
+
+**From:** Itay, 2026-09-29. **Scheduled:** phase 2, steps P2-3 and P2-7.
+
+When the app offers to install Ollama, it should warn that models are large
+(a few GB to tens of GB each). On Windows especially, it should look at the
+drives and recommend the one with the most free space. Bonus: before any
+download, check there is room, and warn when the download would leave less
+than about 10 GB free ("after this download you will have about X GB left").
+
+What the code already has: `internal/hardware/storage.go` reads the free
+space on the volume that holds (or will hold) Ollama's models folder.
+`OLLAMA_MODELS` is read on all three OSes (`winprobe.go`, `macprobe.go`,
+`linuxprobe.go`). `POST /api/models/pull` does not check free space today.
+
+**Itay's open question: can the models live somewhere other than Ollama
+itself?** Yes. Ollama's program and its models are separate. The installer's
+`/DIR=` flag moves only the program. The models folder is set with
+`OLLAMA_MODELS` (on Windows a user environment variable, default
+`%USERPROFILE%\.ollama\models`, which is on C:). Recent Ollama desktop apps
+may also offer a "model location" setting; P2-7 checks that against the
+pinned release. So the drive choice belongs to the first download, not the
+install. The program itself is only a few hundred MB to a couple of GB.
+Setting the variable changes the machine, so it needs its own button
+(product rule 5) and a decision about whether "delete everything" undoes
+it (D-68). That decision is P2-2.
+
+## o. "Looking at images": what is it, and is it a normal category?
+
+**From:** Itay, 2026-09-29. **Scheduled:** phase 2, step P2-1.
+
+It is a normal category. It means models that take a picture as input
+alongside text: describing a photo, reading the text in a screenshot or a
+scanned page (the OCR-like use), explaining a chart or a diagram. Hugging Face
+calls it `image-text-to-text`, Ollama marks these models with a "vision"
+capability, and Arena runs a separate Vision leaderboard. In the catalogue it
+is `catalog.PurposeVision`. The estimator already counts the image reader's
+memory (the `mmproj` / projector file).
+
+The problem is the label. "Looking at images" does not say what the person
+gets, and it could read as image *generation*, which these models do not do.
+The fix: a clearer label ("Understanding pictures and screenshots"), a
+one-line description with examples, and a note that it only helps if the
+chat app lets you attach an image (Ollama's app does). Also be honest that
+small models misread dense documents. Applies to both lists in
+`ui/src/copy/en.ts` (Recommend and onboarding).
+
+## p. Garbled context explainer: "…keep in mind at once. in mind at once"
+
+**From:** Itay, 2026-09-29. **Scheduled:** phase 2, step P2-1.
+
+Cause (not a typo): onboarding's card builds the sentence
+`keepsInMind(words)` + `<Term id="context_window">` + `keepsInMindSuffix`
+(`ui/src/onboarding/Recommendations.tsx:95-97`). `<Term>`
+(`ui/src/components/Term.tsx`) opens its explainer *inline*, in the middle of
+the sentence. With the `?` open, the reader sees: "Keeps about N words of
+context window ? How much text — yours and its replies together — a model can
+keep in mind at once. in mind at once." Any `<Term>` used mid-sentence
+(about 16 uses) can do the same thing. Fix the component, not only this one
+string: show the explainer beside or below the sentence, and add a test that
+renders an open Term inside a sentence.
+
+## q. Any model from Hugging Face: search, paste a link, or use a file you already have
+
+**From:** Itay, 2026-09-29. **Scheduled:** phase 2, steps P2-2 (the decision),
+P2-8, P2-9 and P2-10.
+
+In the app: search Hugging Face, get an estimate first (does it fit, how
+fast), then "Download and test". Also: paste a Hugging Face link, and point at
+a model file already on this computer. Open question: explain what to look
+for on Hugging Face, or keep all of this for advanced users?
+
+This goes against three current rules, so it needs a decision first:
+- D-65: `POST /api/models/pull` accepts only catalogue tags, and "nothing the
+  user typed is ever sent anywhere". A search box sends the person's words to
+  Hugging Face.
+- D-64 / CLAUDE.md "Network": "the requests are a function of the data files
+  and the version alone".
+- The catalogue is curated so that a beginner is never shown fifty thousand
+  repos (BUILD_PLAN.md decisions: "open discovery across all of HF is
+  Phase 2", which is now).
+
+The estimate path mostly exists already: `internal/catalog/hf` reads GGUF
+headers with range requests, `internal/catalog/gguf` parses them, and
+`internal/estimate.Fit` needs only header facts. Ollama can pull straight from
+Hugging Face (`hf.co/{owner}/{repo}:{quant}`). A local file can go into
+Ollama with `/api/blobs` + `/api/create`, which copies it into Ollama's own
+folder, so it needs the disk check from (n).
+
+## r. From "this is the model I want" to a running model and an open chat
+
+**From:** Itay, 2026-09-29. **Scheduled:** phase 2, steps P2-2 (the decision)
+and P2-4. Supersedes backlog (g), which asked the same thing.
+
+The biggest gap. A person can pick a model and download it, but the app stops
+at "here is its name, go find a chat app" (step 7's "Use it" screen, D-52: a
+chat app is detected, never driven). The goal is one button: start Ollama if
+needed, load the model, and open a chat with that model already chosen.
+
+Constraints to decide against (P2-2): D-52 (the advisor does not drive a chat
+app), D-8 / D-65 (only the benchmark talks to a model, and only with the
+suite's text), and product rule 1 (no terminal). Ollama's own desktop app
+exists on macOS and Windows but not on Linux, so hand-off alone leaves Linux
+users without a chat.
