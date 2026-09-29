@@ -7,7 +7,7 @@ PRD §18.
 
 **This is an outline, not yet a plan.** The prompts get written when phase 3
 starts, not now. They depend on the Backend methods phase 2 adds
-(ARCHITECTURE.md D-78: `Capabilities`, `Load`, `Chat`, `Import`,
+(ARCHITECTURE.md D-78: `Capabilities`, `Load`, `ChatPage`, `Import`,
 `ModelsFolder`, `SetModelsFolder`). P2-2 checked each against LM Studio's and
 llama-server's documentation; D-78's table is what phase 3 re-checks against
 running copies, as step 3 did for Ollama.
@@ -40,7 +40,7 @@ better on llama.cpp's Vulkan than on Ollama's.
 | Step | What | Backlog | Model |
 |---|---|---|---|
 | P3-1 | Second runtime decision: runtime picker, where each runtime's models live, which one a recommendation targets, how "Start chatting" works per runtime | h | **Opus** |
-| P3-2 | llama.cpp backend: find or install llama-server, supervise it as a child process on loopback, load / unload / running models, runtime path from its log | h | **Opus** |
+| P3-2 | llama.cpp backend: find or install llama-server, supervise it as a child process on loopback, load / unload / running models, runtime path from its log; its built-in web page becomes the chat surface "Start chatting" opens (D-74), which gives Linux a one-click chat | h | **Opus** |
 | P3-3 | Multiple GPUs: plan across cards (estimate.Fit per device and a split), llama.cpp's split options, setup guidance for integrated + dedicated, and comparing the expected GPU with the one the runtime used | c, d | **Opus** (Fable if the estimator's memory formula, D-20, has to change) |
 | P3-4 | LM Studio backend: detect it, drive its local API and lms CLI, MLX models on Apple Silicon as a separate file type in the catalogue | h | **Sonnet** |
 | P3-5 | Screens: runtime picker in Settings, per-runtime status on the Ollama screen (renamed "Runtimes"), benchmarks comparable across runtimes | h | **Sonnet** |

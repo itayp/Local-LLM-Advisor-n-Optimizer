@@ -28,7 +28,7 @@ the detail.
 | o. "Looking at images" is unclear | Done (P2-1); the daemon's own "vision" wording is left, see the section | Phase 2, P2-6 (Go copy) |
 | p. Explainer breaks its sentence | Done (P2-1) | — |
 | q. Any model from Hugging Face, or a local file | Decided (D-75 to D-77): search on a click under its own egress purpose, not behind Advanced; a folder scan on a click and a pasted path under Advanced | Phase 2, P2-8 to P2-10 |
-| r. From a chosen model to an open chat | Decided (D-74): a minimal chat page in the advisor, Ollama's app as the next step | Phase 2, P2-4 |
+| r. From a chosen model to an open chat | Decided (D-74): hand-off only; load the model, then open the chat the computer already has. No chat in the advisor; Linux waits for phase 3 | Phase 2, P2-4 |
 
 ## a. A copy button anywhere a model name is shown
 
@@ -717,8 +717,12 @@ suite's text), and product rule 1 (no terminal). Ollama's own desktop app
 exists on macOS and Windows but not on Linux, so hand-off alone leaves Linux
 users without a chat.
 
-**Decided (P2-2, ARCHITECTURE.md D-74).** A minimal chat page inside the
-advisor, on all three operating systems: one model, text only, nothing
-stored, sent only to this computer's runtime. Ollama's app is the next step
-where it is installed, opened on a click. It can't be told which model to
-use, and on a fresh install it opens on a cloud model. P2-4 is Opus.
+**Decided (P2-2, ARCHITECTURE.md D-74; Itay, 2026-09-29).** Hand-off only;
+the advisor has no chat of its own. "Start chatting" loads the model with no
+text, then opens the first chat surface this computer has: the runtime's own
+page (none for Ollama; llama-server has one, phase 3), Open WebUI if it is
+already running (opened on the model), or Ollama's app on macOS and Windows.
+Ollama's app can't be told which model to use, so the advisor shows the exact
+name to pick. On Linux with Ollama and no web chat running there is nothing
+to open yet, and the screen says so; phase 3's llama-server page fills that
+gap. P2-4 is Sonnet.

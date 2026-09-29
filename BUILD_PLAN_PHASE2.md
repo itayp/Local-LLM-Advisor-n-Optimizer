@@ -19,9 +19,10 @@ the step names.
 - **The curated list is still the front door.** A beginner sees the
   recommendations. Searching all of Hugging Face is a second door, for people
   who already know what they want.
-- **The advisor still calls no model to do its own job.** Anything P2-2 allows
-  a model to receive is the person's own chat, started by the person, sent to
-  this computer's runtime only.
+- **The advisor still calls no model to do its own job, and has no chat of
+  its own.** "Start chatting" loads the model with no text and opens the chat
+  this computer already has: Ollama's app, a web chat already running, or,
+  from phase 3, the runtime's own page (D-74).
 - **Ollama is still the only runtime.** llama.cpp, LM Studio and multiple
   GPUs (backlog c, d, h) are phase 3 (`BUILD_PLAN_PHASE3.md`). Phase 2
   prepares for them in two ways: P2-2 checks every new backend method
@@ -47,7 +48,7 @@ in `claude/` (`claude/p2-3-disk-space.md`).
 | P2-1 | Copy fixes: the explainer that breaks sentences, the "images" purpose, a copy button | a, o, p | **Sonnet** | — |
 | P2-2 | Phase 2 decisions: models folder, chat, free text to Hugging Face, local files, backend methods checked against LM Studio / llama.cpp | n, q, r | **Fable** | Every later step builds on these |
 | P2-3 | Free-space check before every download | n | **Sonnet** | — |
-| P2-4 | From "this one" to a running model and a chat | g, r | **Opus** (D-74: a chat page inside the advisor) | The product's missing last mile |
+| P2-4 | From "this one" to a running model and an open chat | g, r | **Sonnet** (D-74: hand-off, no chat in the advisor) | The product's missing last mile |
 | P2-5 | Models and Benchmarks screens: speed verdict everywhere, sizes, chat from the Models screen | j, l | **Sonnet** | — |
 | P2-6 | Recommendation quality: the public-score bias and the 9–18 GB gap | f, m | **Opus** | Changes the picks on the golden profiles |
 | P2-7 | Choosing and moving the models drive (Windows first) | n | **Opus** | Changes the machine; must not lose a model |
@@ -77,11 +78,9 @@ decide whether the watch stays on by default. P2-7 also fills
 privacy promise (D-65) and the "does not chat" line (D-52) that the rest of
 the product has been built around. A wrong call there costs every later step,
 the same reason the skeleton and the estimator got Fable in the MVP. Opus
-where correctness is the risk: P2-4 adds the chat's path to a model beside
-the benchmark's sealed one (D-74) and loosens the archtest rule that only the
-benchmark talks to a model; P2-6 changes what the engine recommends and
-needs research behind it; P2-7 moves gigabytes of someone's models and edits
-their environment; P2-8 lets data from outside the curated list reach the
+where correctness is the risk: P2-6 changes what the engine recommends and
+needs research behind it; P2-7 moves gigabytes of someone's models and walks
+them through a setting in another app; P2-8 lets data from outside the curated list reach the
 estimator and the API, so the security and "unknown is unknown" rules are
 tested there. Sonnet for bounded work that follows a decision already written:
 copy, the disk check, the UI flows.
@@ -294,20 +293,20 @@ Ollama itself reports.
 
 ---
 
-## Step P2-4 — From "this one" to a running model and a chat (Opus)
+## Step P2-4 — From "this one" to a running model and an open chat (Sonnet)
 
-**Model.** Opus. D-74 chose a chat page inside the advisor, which adds a
-second path to a model beside the benchmark's sealed one and changes the
-archtest rules that hold D-8 and D-65.
+**Model.** Sonnet. D-74 chose the hand-off: the advisor loads the model and
+opens the chat the computer already has. It has no chat of its own, so no
+guarantee that archtest enforces is loosened.
 
 ```
-Read CLAUDE.md, ARCHITECTURE.md D-8, D-52, D-65, D-67, and D-71 to D-74 and
-D-78 (the facts, Start, cloud models, the chat, the new Backend methods),
-internal/backend (the interface and the Ollama adapter), internal/suite,
+Read CLAUDE.md, ARCHITECTURE.md D-4, D-52, D-65, D-67, and D-71 to D-74 and
+D-78 (the facts, Start, cloud models, the hand-off, the new Backend
+methods), internal/backend (the interface and the Ollama adapter),
 internal/archtest, internal/chatapps, internal/server/{backend,pull,
-chatapps,onboarding,bench,benchmodels}.go, ui/src/onboarding/UseIt.tsx,
-ui/src/screens/{Models,Recommend,Home}.tsx, and claude/backlog.md items
-(g) and (r).
+chatapps,onboarding,bench,benchmodels}.go, cmd/advisor's openBrowser,
+ui/src/onboarding/UseIt.tsx, ui/src/screens/{Models,Recommend,Home}.tsx,
+and claude/backlog.md items (g) and (r).
 
 The goal, in the person's words: "I pick a model and I end up talking to
 it." One flow, reachable from every place a model is shown (a Recommend
@@ -322,8 +321,8 @@ will do:
 1. Cloud models first (D-73), because this closes a gap the benchmark has
    today. Add Installed.Remote and RemoteKnown, and ModelInfo.RemoteHost,
    from remote_host. The adapter sends model names with Ollama's ":local"
-   suffix in Generate, Chat and Load, and refuses a remote model before it
-   sends anything. POST /api/bench refuses one (422 remote_model), and
+   suffix in Generate and Load, and refuses a remote model before it sends
+   anything. POST /api/bench refuses one (422 remote_model), and
    GET /api/bench/models leaves it out. The Models screen labels it "Runs
    on Ollama's computers, not this one", with no test or chat button.
 
@@ -335,46 +334,48 @@ will do:
    Windows PC and write down what you saw in the step doc. If one of them
    is wrong, stop and report it.
 
-3. Backend.Capabilities, Load and Chat (D-78), and internal/conversation
-   (D-74), exactly as specified. Turn is sealed: no exported field;
-   String, GoString, Format and LogValue return a placeholder; MarshalJSON
-   fails. It is made only by conversation.Decode, with its limits.
-   ChatRequest is {Model, Turns, NumCtx, KeepAlive} and nothing else;
-   LoadRequest is {Model, NumCtx, KeepAlive}. In the Ollama adapter, Load
-   is /api/generate with no prompt, and Chat is /api/chat streamed, both
-   through egress.Local. ChatKeepAlive (30 minutes) goes in a config
-   struct, marked CHOSEN.
+3. Backend.Capabilities, Load and ChatPage (D-78). LoadRequest is {Model,
+   NumCtx, KeepAlive} and has no text field. The Ollama adapter's Load is
+   /api/generate with no prompt, through egress.Local, at the runtime's
+   default context (NumCtx 0), so a chat app's first request reuses the
+   load. Ollama's ChatPage capability is false. A failed load comes back
+   as words.
 
-4. The server: POST /api/chat/load (no text) and POST /api/chat
-   (internal/server/chat.go, which streams the reply; closing the request
-   stops it). chat.go touches neither the store nor the logger. The last
-   model chatted with is a setting in the settings table, for Home's
-   "Continue chatting with <name>" card.
+4. "Start chatting" does D-74's steps exactly: load (saying what is
+   happening, and the last measured load time when a test has one), then
+   open the first chat surface that exists, in D-74's order:
+   - the runtime's own chat page (none for Ollama; the code path exists for
+     phase 3's llama-server);
+   - Open WebUI, if one GET to 127.0.0.1:8080/api/config through
+     egress.Local recognises it, opened at /?model=<name>;
+   - Ollama's app, where chatapps finds it, opened with ollama://, with the
+     exact name, the copy button and D-74's sentence about picking the
+     model and about cloud models;
+   - none: D-74's sentence for Ollama on Linux, the name with the copy
+     button, and the other apps with their note.
+   Offer the others, if any, as links below the first. The daemon opens a
+   surface only through POST /api/chat/open {"target": id}, with an id it
+   issued, building the URL itself with the OS's opener (the one
+   cmd/advisor already uses for the browser). A request never carries a
+   URL. UseIt.tsx and the list of other apps follow D-74: LM Studio is
+   never offered for an Ollama model. The last model started this way is a
+   setting in the settings table, for Home's "Continue chatting with
+   <name>" card.
 
-5. The page, a screen in ui/src/screens/index.ts: the model's name at the
-   top, streamed replies shown as text, thinking folded under the reply, a
-   Stop button, and the conversation in component state only (not
-   localStorage), gone when the page closes. Nothing from D-74's "will not
-   grow into" list. Where chatapps finds Ollama's app, add "Continue in
-   Ollama's app": a click that opens ollama:// through the daemon, with
-   the exact name, the copy button and D-74's sentence. UseIt.tsx and the
-   list of other apps follow D-74: no copy that suggests LM Studio can use
-   an Ollama model. While a model loads, say what is happening, and show
-   the last measured load time when a test has one.
+5. Tests: D-74's held-by list, D-73's shape test, D-78's LoadRequest pin
+   and the rule against runtime-name literals. The existing rules for
+   Generate stay unchanged.
 
-6. The archtest rules D-74 lists (1 to 4), D-73's shape test, and D-78's
-   rules for LoadRequest and for runtime-name literals. The existing rules
-   for Generate stay unchanged. Place internal/conversation in the layer
-   table.
-
-Test on all three operating systems, including Linux, where Ollama has no
-desktop app.
+Test on all three operating systems. On Linux the flow ends at a loaded
+model and D-74's sentence, unless an Open WebUI is running.
 ```
 
-**Done when** a person who has never used the app goes from a
-recommendation to a reply from that model without a terminal and without
-typing the model's name, on macOS, Windows and Linux; a cloud model can be
-neither tested nor chatted with; and archtest holds every rule D-74 lists.
+**Done when** a person who has never used the app goes, on macOS and
+Windows, from a recommendation to Ollama's chat window with that model
+loaded and its exact name in front of them, without a terminal and without
+typing the name; on Linux reaches a loaded model and a plain sentence
+saying why there is no chat window to open yet; and a cloud model can be
+neither tested nor started.
 
 ---
 

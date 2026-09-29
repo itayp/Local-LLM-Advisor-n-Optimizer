@@ -93,9 +93,11 @@ the LM Studio local API and llama-server's API, so llama.cpp and LM Studio
 
 ## D-4. Runtimes and chat apps are two lists
 
-*Superseded in part by D-74: the advisor has a minimal chat page of its
-own, sent only to this computer. Chat apps are still detected, and
-Ollama's app is opened on a click as the next step, never told what to do.*
+*Amended by D-74: the product still never becomes a chat interface. "Use
+it" becomes "Start chatting": the advisor loads the model with no text,
+then opens the chat this computer already has (the runtime's own page, a
+web chat already running, or the runtime's app) on a click, and never
+drives it.*
 
 **Decision.** A runtime is what runs the model (Ollama now; llama.cpp, LM
 Studio later) and the advisor drives it. A chat app is where the person talks
@@ -161,10 +163,6 @@ beginner shown fifty thousand repos has been shown nothing.
 
 ## D-8. The advisor calls no LLM to do its own job
 
-*Amended by D-74: besides the benchmark's `Generate`, the chat page's
-`Chat` sends the person's own words to the model they chose. D-8 still
-holds: the advisor reads, scores and keeps none of it.*
-
 **Decision.** Estimation is arithmetic; recommendation is rules over data.
 The only models that run are the ones being tested.
 
@@ -179,9 +177,8 @@ The only models that run are the ones being tested.
 
 ## D-9. No telemetry and no community database in the MVP
 
-*Amended by D-74 and D-75: the chat sends the person's words to this
-computer's runtime only, and a search sends its words to Hugging Face on
-the person's click, saying so on the screen.*
+*Amended by D-75: a search sends its words to Hugging Face on the person's
+click, with the screen saying so.*
 
 **Decision.** Nothing leaves the machine except requests to the model
 sources. PRD §11 is Phase 2 and needs its own privacy note before a line of
@@ -664,7 +661,7 @@ file uses the same parser and strict decoding (`DisallowUnknownField`).
 
 ## D-27. The Backend interface is frozen against three runtimes, not one
 
-*Amended by D-78: six more methods (`Capabilities`, `Load`, `Chat`,
+*Amended by D-78: six more methods (`Capabilities`, `Load`, `ChatPage`,
 `Import`, `ModelsFolder`, `SetModelsFolder`), checked against the same
 three runtimes.*
 
@@ -1665,9 +1662,10 @@ one laptop's run is evidence enough to move a constant or a rule.
 
 ## D-52. Step 7: onboarding polls rather than streams, sits in front of the router, and a chat app is detected, never driven
 
-*Superseded in part by D-74: "Use it" becomes "Start chatting", a chat
-page inside the advisor. Detection stays, and Ollama's app is opened on a
-click (`ollama://`) as the next step, never driven.*
+*Amended by D-74: "Use it" becomes "Start chatting". The model is loaded
+first, then the chat surface is opened on a click (`ollama://` for
+Ollama's app, or a web chat already running), never driven. LM Studio is
+no longer offered for an Ollama model.*
 
 **Decision.**
 
@@ -2429,9 +2427,9 @@ calibrate) are developer tools, not shipped, and are outside the scan.
 ## D-65. Nothing typed is ever sent: a model receives only the suite's text
 
 *Amended by D-73 (the model, not only the runtime, must be on this
-computer), D-74 (the chat is a second, sealed path to a model; the
-benchmark still sends only the suite) and D-75 (a download may also be a
-Hugging Face file the advisor resolved itself).*
+computer) and D-75 (a download may also be a Hugging Face file the advisor
+resolved itself). The benchmark is still the only thing that sends a model
+text; D-78's `Load` has no text field.*
 
 **Decision.** D-9 and D-44 said nothing the user typed is ever sent, and
 that the code should make that impossible rather than merely true. Step 12
@@ -2666,7 +2664,9 @@ against:
   `tools/server/README.md`;
 - **Hugging Face**: the search request as `huggingface_hub` `f151320`
   (`hf_api.py`, `list_models`) sends it, and `huggingface/hub-docs`
-  `761bb84` (`docs/hub/ollama.md`).
+  `761bb84` (`docs/hub/ollama.md`);
+- **Open WebUI**: `open-webui/open-webui` `8bd8b4f` (2026-09-21), for
+  D-74's hand-off to a web chat.
 
 **Findings about Ollama v0.34.2.**
 
@@ -2850,7 +2850,7 @@ P2-3 builds the reading, P2-7 the choice and the move.
   models and is saving to C:\Users\…\.ollama\models instead. Is the drive
   connected?").
 - **Moving models that already exist** is one flow on every OS (P2-7):
-  1. It is refused while a download, a test, a chat load or an import is
+  1. It is refused while a download, a test, a model load or an import is
      running, and unless the new drive has room for every blob plus
      P2-3's margin.
   2. The old folder is the one Ollama reports. Ollama keeps running on it
@@ -2928,26 +2928,27 @@ line, depends on its Modelfile format. Both are pinned by fixtures.
 ## D-73. A model on this computer means its weights run here: cloud and linked models get no text
 
 **Amends** D-65 ("The runtime is this computer"). P2-4 builds it, because
-it touches the adapter's `Generate` and adds `Chat`.
+it touches the adapter's `Generate` and adds `Load`.
 
-**Decision.** Any path that sends text to a model accepts only a model
-whose weights are on this computer. Today that is the benchmark, which
-sends the suite. After D-74 it is also the chat, which sends the person's
-words.
+**Decision.** The benchmark, the only path that sends a model text (D-74
+keeps it that way), accepts only a model whose weights are on this
+computer. So does `Load` (D-78): loading a cloud model means nothing on
+this computer, and "Start chatting" never offers one.
 
 - `backend.Installed` gains `Remote` and `RemoteKnown`, and
   `backend.ModelInfo` gains `RemoteHost`. The Ollama adapter fills them
   from `remote_host` in `/api/tags` and `/api/show` (D-71, 5).
-- The Ollama adapter's `Generate`, `Chat` and `Load` send the model's name
-  with Ollama's `:local` suffix (D-71, 5), so Ollama itself refuses a
-  remote model instead of forwarding it. Before sending, they also refuse
+- The Ollama adapter's `Generate` and `Load` send the model's name with
+  Ollama's `:local` suffix (D-71, 5), so Ollama itself refuses a remote
+  model instead of forwarding it. Before sending, they also refuse
   a model that `Show` reports as remote, with `ErrRemoteModel`, and never
   send anything for it.
 - A backend that cannot tell whether a model is remote reports
-  `RemoteKnown: false`, and such a model gets no test and no chat. LM
+  `RemoteKnown: false`, and such a model gets no test and no "Start
+  chatting". LM
   Studio's LM Link is the case phase 3 has to settle (D-78).
 - On the Models screen a remote model says "Runs on Ollama's computers,
-  not this one", with no test and no chat button. The recommendation
+  not this one", with no test and no "Start chatting" button. The recommendation
   engine and the benchmark picker treat it as not installed, because its
   fit on this machine means nothing.
 
@@ -2957,167 +2958,148 @@ the suite's text there today and time someone else's computer. D-65
 checked that the runtime was on loopback. That was never the whole of
 product rule 7.
 
-**Costs.** A person who uses Ollama's cloud models cannot test or chat
-with them in the advisor. That is intended: the advisor is about this
+**Costs.** A person who uses Ollama's cloud models cannot test them, or
+start them from the advisor. That is intended: the advisor is about this
 computer.
 
 **Held by.** Adapter tests against a fake Ollama that lists a model with
-`remote_host`: `Generate`, `Chat` and `Load` refuse it before any request
-reaches `/api/generate` or `/api/chat` (the fake records every request),
+`remote_host`: `Generate` and `Load` refuse it before any request reaches
+`/api/generate` (the fake records every request),
 and every request the adapter does send names the model with `:local`.
 `POST /api/bench` answers 422 `remote_model`. An `internal/archtest` shape
 test holds `Installed.Remote` and `RemoteKnown`.
 
-## D-74. The chat: a first conversation inside the advisor, sent only to this computer; Ollama's app is the next step
+## D-74. The chat stays outside the advisor: "Start chatting" loads the model and opens the chat this computer already has
 
-**Supersedes in part** D-4 ("the product never becomes a chat interface";
-"'Use it' ends with the model's exact name and a copy button") and D-52 ("a
-chat app is detected, never driven"). **Amends** D-8 and D-65. Answers
-backlog (r) and supersedes (g). PRD §22 is read as described under "Why"
-below. P2-4 builds it.
+**Amends** D-4 and D-52. A chat app is still detected and never driven.
+What changes is that it is now opened on a click, after the model has been
+loaded. D-8 and D-65 are unchanged: the benchmark is still the only thing
+that sends a model any text. Answers backlog (r) and supersedes (g). P2-4
+builds it.
 
 **The three options, against D-71's facts.** The test is product rule 1 on
 all three operating systems, for a person who has never heard of Open
 WebUI.
 
-- **(a) Hand-off only.** On macOS and Windows the advisor can start Ollama,
-  load the model with no text (D-78, `Load`) and open Ollama's app through
-  `ollama://`. It cannot choose the model inside the app (D-71, 4). The app
-  opens on its own last choice, or, on a fresh install, on the first entry
-  of its featured list, which is a cloud model. A person told "chat with
-  Qwen3.5 9B" would land on a different model, possibly one running on
-  Ollama's computers. The model can only be named for them to pick. On
-  Linux there is no Ollama app (D-71, 3). Of the other apps D-52 detects,
-  LM Studio keeps its own copies of models and cannot use Ollama's, and
-  the others reach Ollama's models only once they are connected to Ollama
-  in their own settings, which the person would have to know to do. So (a)
-  fails the test on Linux.
-- **(b) A chat page inside the advisor.** It works the same way on all
-  three operating systems. It is the only option that can guarantee the
-  model is the one the person picked, and the only one in which the
-  advisor itself keeps the promise that the words stay on this computer
-  (D-73). It costs a second path by which text reaches a model.
-- **(c) Both, hand-off first.** This passes the test, but it means building
-  and testing two flows. On macOS and Windows the main path keeps (a)'s
-  problems, the wrong model and the cloud default, and the built-in page
-  would be exercised only on the fleet's one Linux machine.
+- **(a) Hand-off.** The advisor starts the runtime, loads the model with no
+  text (D-78, `Load`) and opens the chat the computer already has. On
+  macOS and Windows that is Ollama's app, which cannot be told which model
+  to use (D-71, 4), so the model can only be named for the person to pick.
+  On Linux, Ollama has no app (D-71, 3), so there is nothing to open unless
+  the person runs a web chat themselves.
+- **(b) A chat page inside the advisor.** This works the same on all three
+  operating systems and can guarantee the model, but it makes the advisor
+  a chat interface and adds a second path by which text reaches a model.
+- **(c) Both**, with the built-in page where no chat app exists.
 
-**Decision: (b).** "Start chatting with <name>" opens a chat page in the
-advisor on all three operating systems. Where Ollama's app is installed,
-the page offers **"Continue in Ollama's app"** as the next step, for saved
-conversations, files and pictures. That link opens `ollama://`, the app's
-own documented way to be opened; nothing is typed into the app or chosen
-for it. Beside it are the model's exact name, the copy button (backlog a)
-and one sentence: "In Ollama's app, pick <name> from the model menu. Models
-whose names end in 'cloud' run on Ollama's computers, not yours."
-Detecting chat apps (D-52) stays, for that link and for a short list of
-other apps. The list's copy stops implying they can use the model as they
-stand.
+**Decision: (a), hand-off. The advisor has no chat of its own.** The first
+draft of this entry proposed (b). Itay chose (a) on 2026-09-29: "the chat
+shouldn't be in this app, it should only open what's relevant — whether
+it's Ollama itself or a web page with the chat if that's how it works on
+the device, and if not available, we can add later, when we have other
+programs that do support it (like llama.cpp)." D-4's "the product never
+becomes a chat interface" and PRD §22 stand as written.
 
-**The flow** (P2-4). It is one button per stage, each saying what it will
-do:
+**"Start chatting with <name>"** (P2-4). One button per stage, each saying
+what it will do:
 
 1. "Download 5.2 GB", with P2-3's space check, when the model is not
    installed.
 2. "Start Ollama" when it is stopped. Where the app is installed, this
    opens the app hidden (D-72).
-3. "Start chatting with <name>". This loads the model with no text (D-78,
-   `Load`) at the context the recommendation chose for it (D-41), so the
-   first message does not reload it, and keeps it loaded for
-   `ChatKeepAlive` (30 minutes, CHOSEN, in a config struct with what would
-   settle it). Then the page opens.
+3. **Load.** The model is loaded with no text (D-78) at the runtime's
+   default context, which is the context a chat app's first request will
+   ask for, so the load is not repeated. The screen says "Loading Qwen3.5
+   9B into memory" and, when a test has measured it, how long the load took
+   last time. A load that fails is reported in words here, before anything
+   is opened: not enough memory, or a file the runtime cannot run.
+4. **Open the chat surface for this runtime on this computer**, the first
+   of these that exists. The others, if any, are offered as links below it.
+   - **A chat page the runtime serves itself** (`Capabilities.ChatPage`,
+     D-78), opened in the browser at its loopback address, with the model
+     chosen when the page allows it. There is none in phase 2: Ollama
+     serves no page, because its chat is its app. llama-server serves one:
+     its built-in web UI, on by default (`--ui`, `tools/server/README.md`).
+     That is how phase 3 gives Linux a chat that opens in one click.
+   - **A web chat already running on this computer that talks to this
+     runtime.** Today that means Open WebUI, recognised by one GET to its
+     public `/api/config` at its default address (`127.0.0.1:8080`)
+     through `egress.Local`. It is opened at `/?model=<name>`. Open WebUI
+     selects the model named in its URL, and when it doesn't know that
+     name it opens its model picker with the name filled in (open-webui
+     `8bd8b4f`, `src/lib/components/chat/Chat.svelte`). The person chose to
+     run it, and it can be told the model, so it comes before the next
+     option.
+   - **The runtime's own app**, detected by `internal/chatapps`: Ollama's
+     app on macOS and Windows, opened with `ollama://` (D-71, 4). It cannot
+     be told which model to use. So beside the link the screen shows the
+     model's exact name with the copy button (backlog a), and the sentence
+     "In Ollama's window, pick <name> from the model menu. Models whose
+     names end in 'cloud' run on Ollama's computers, not yours."
+   - **None.** This is Ollama on Linux with no web chat running. The screen
+     says so plainly: "Ollama on Linux has no chat window of its own, so
+     there's nothing to open yet." It shows the model's exact name with the
+     copy button, and lists the other chat apps with a note that each has
+     to be connected to Ollama in its own settings, and that LM Studio
+     cannot use Ollama's models at all.
+5. Home's "most useful thing" card becomes "Continue chatting with <name>".
+   The last model started this way is a setting in the settings table, not
+   history.
 
-Home's "most useful thing" card becomes "Continue chatting with <name>".
-The last model chatted with is a setting, not history (D-57's settings
-table).
+**Which chat apps are offered.** An app that cannot reach the runtime's
+models as it stands is never offered as the place to chat with them. LM
+Studio keeps its own copies of models, so it is never offered for an
+Ollama model. The copy on the "Use it" screen changes to match.
 
-**What the page is, and what it will not grow into.** This list is the
-scope PRD §22 protects. A request for anything outside it reopens this
-entry; it is not a follow-up task.
+**What the advisor does not do.** It has no chat page and sends no text
+(`LoadRequest` has no text field, and archtest pins its shape). It installs
+no chat app (D-4). It writes no chat app's settings and never calls a chat
+app's private API (D-71, 4). It never pretends to choose a model in an app
+that cannot be told which model to use. The daemon opens a chat surface
+only by an id it issued: `POST /api/chat/open {"target": "<id>"}` names a
+surface the server detected, and the server builds the URL itself
+(`ollama://`, or the loopback page with the model's installed name). A
+request can never hand the daemon a URL or a program to open.
 
-- One installed local model, named at the top. Changing model means going
-  back to the Models screen.
-- Text only, streamed, with a Stop button. Replies are shown as text:
-  nothing in a reply is run, fetched or rendered as HTML (the CSP already
-  forbids remote images, D-67). A reasoning model's thinking appears
-  folded under the reply.
-- No system prompt, no settings, no tools, no attachments, no pictures, no
-  saved conversations, no export and no second model.
-- Nothing is stored. The conversation lives in the page's memory, not in
-  `localStorage`, and is gone when the page closes. The daemon keeps
-  nothing between requests: each request carries the conversation so far.
-- Nothing is measured. A chat produces no speed figure, no calibration
-  evidence (D-48) and no benchmark row. A personal performance model built
-  from real use (PRD §13) would need its own decision and its own privacy
-  note.
+**Why.** The product's job ends at "this model, loaded and working, in the
+chat you have" (PRD §22). The gap this leaves, no one-click chat for
+Ollama on Linux, is accepted and scheduled for phase 3's llama-server page.
+The alternative was a chat surface the product would then have to keep
+narrow indefinitely.
 
-**What stays sealed.** The benchmark is unchanged. `backend.GenerateRequest`
-keeps exactly its fields, a `suite.Prompt` is still the only text
-`Generate` carries, and only `internal/bench` calls `Generate`.
-`TestOnlyTheBenchmarkAsksAModelAnything` and
-`TestAModelIsSentOnlyTheSuitesText` stay as they are. The benchmark never
-sends the person's text, and the chat never sends the suite.
+**Costs.**
 
-**The new path, and what it may carry.**
+- **Linux with Ollama: no chat to open in phase 2.** Everything up to a
+  loaded, tested model works without a terminal. Talking to the model
+  waits for phase 3, or for a web chat the person runs themselves.
+- **macOS and Windows: the person picks the model in Ollama's window.** The
+  advisor cannot guarantee which model is used, or stop the app's cloud
+  default (D-71, 4). It can only say so, which the sentence above does.
+- **The hand-off rests on others' interfaces**: Ollama's `ollama://` and
+  Open WebUI's `/api/config` and `?model=`, pinned to the versions read
+  (D-71; open-webui `8bd8b4f`). P2-4 checks each on a real install.
+- **Recognising Open WebUI** costs one GET to one loopback address, reading
+  one public endpoint and nothing else.
 
-- **`internal/conversation`** (a leaf package, layer 0). `Turn` has a role
-  (`user` or `assistant`) and text, both unexported. The only maker is
-  `conversation.Decode`, which reads the chat page's JSON with limits: at
-  most `MaxTurns` turns and `MaxTurnBytes` bytes each, inside D-67's 1 MiB
-  body cap. `String`, `GoString`, `Format` and `LogValue` return a
-  placeholder, and `MarshalJSON` returns an error, so a turn's text cannot
-  reach a log line, an error message or a stored JSON column by accident.
-- **`backend.ChatRequest{Model string; Turns []conversation.Turn; NumCtx
-  int; KeepAlive time.Duration}`**. It has no system prompt, template, raw
-  mode, tools, images, format or options map. `Backend.Chat(ctx, req,
-  onEvent)` streams `ChatEvent{Text, Thinking, Done, DoneReason}`, with no
-  timings. The Ollama adapter sends `/api/chat` through `egress.Local`,
-  with the `:local` name and D-73's check.
-- **`POST /api/chat`** (`internal/server/chat.go`) streams the reply to the
-  page. Closing the request cancels the generation (the context), and the
-  Stop button does exactly that. **`POST /api/chat/load`** loads the model
-  with no text. Both sit behind D-67's checks like every API route.
-- **D-8 holds.** The advisor still calls no model to do its own job. The
-  chat is the person's own use, started by them, and the advisor reads,
-  scores and keeps none of it.
+**P2-4's model is Sonnet.** No guarantee that archtest enforces is loosened:
+`Load` carries no text, `Generate` is still called only by the benchmark,
+and the rules that hold D-8 and D-65 are unchanged.
 
-**The archtest rules.** They sit beside "only the benchmark calls
-`Generate`", which stays.
+**Held by** (tests P2-4 writes):
 
-1. `TestOnlyTheChatHandlerSendsAConversation`: a call to a runtime's
-   `Chat`, or a `backend.ChatRequest` literal, anywhere but
-   `internal/server/chat.go` and `internal/backend/...` fails. So does a
-   `conversation.Turn` made outside `internal/conversation`.
-2. `TestAChatCarriesOnlyTheTurns`: `ChatRequest`'s fields and types are
-   pinned, as `GenerateRequest`'s are, and `Turn` has no exported field.
-3. `TestTheBenchmarkNeverSeesAConversation`: only `internal/server`,
-   `internal/backend` and its adapters import `internal/conversation`.
-   `bench`, `store`, `watch`, `recommend` and `catalog/...` never do.
-4. `TestTheChatHandlerStoresNothing`: `internal/server/chat.go` refers to
-   neither the store nor the logger. It reports errors through a helper
-   that takes an error code, never a turn. `internal/conversation`'s own
-   tests check that `fmt`, `slog` and `encoding/json` never show a turn's
-   text.
-5. The egress rules are unchanged: the adapter reaches only loopback.
-
-**Why (b), given PRD §22.** The PRD's worry is a product that competes
-with Open WebUI by becoming another chat interface. A page that holds one
-conversation with one model and remembers nothing does not compete with
-it. It is the last step of "recommend, test, use", which D-4 left to chat
-apps that, as D-71 shows, cannot be pointed at the model. And the page ends
-by pointing to a real chat app.
-
-**Costs.** This is a second path by which text reaches a model, and the
-first that carries the person's own words. A sealed type and archtest
-rules hold its shape, but it is a looser guarantee than "only the suite
-ever reaches a model". People will ask for history and files; the list
-above is the answer until this entry is reopened. Loading takes as long as
-the machine takes. The page says what is happening and, when a test has
-measured it, how long the load took last time (a measurement, shown as
-one, rule 4).
-
-**P2-4's model is Opus**, because this loosens a guarantee that archtest
-enforces (a model receives only the suite), as the build plan asked.
+- `internal/archtest`: `LoadRequest` is pinned to `Model`, `NumCtx` and
+  `KeepAlive` (D-78). `TestOnlyTheBenchmarkAsksAModelAnything` and
+  `TestAModelIsSentOnlyTheSuitesText` are unchanged.
+- `internal/chatapps`: Open WebUI is recognised from an `httptest` server on
+  loopback that answers `/api/config` like Open WebUI, and not recognised
+  from one that answers differently. Nothing but that one request is made.
+- `internal/server`: the choice of surface is tested for every combination
+  (a runtime page, a web chat, the runtime's app, none), with fake
+  capabilities and fake detection, including the words shown for each.
+  `POST /api/chat/open` refuses anything but an id it issued, and a body
+  carrying a URL is refused.
+- `internal/backend/ollama`: `Load` sends `/api/generate` with no prompt,
+  and a failed load comes back as words.
 
 ## D-75. Free text to Hugging Face: search on a click, under its own purpose; a download is a curated tag or a file the advisor resolved itself
 
@@ -3194,8 +3176,7 @@ search and P2-9 the download.
   the person was shown. The repository's own `template`, `system` and
   `params` files come with it (D-71, 7). They are the model's
   configuration, applied by Ollama as for any model. The advisor's
-  benchmark is raw (D-44) and ignores them; the advisor's chat adds no
-  system prompt of its own.
+  benchmark is raw (D-44) and ignores them.
 
 **Why product rule 7 still holds.** Rule 7 says no prompt, no file and no
 usage data leaves the machine. A search the person runs, sent where the
@@ -3325,7 +3306,8 @@ P2-10 the paths that install such a model.
 - **Facts from the file are shown as facts:** whether it has an image
   reader, the context it was trained for, and the licence the repository
   states.
-- **Tests and chat: yes,** once it is installed and runs locally (D-73).
+- **Tests and "Start chatting": yes,** once it is installed and runs
+  locally (D-73).
   Its test calibrates this machine, as D-48 already allows for a model the
   catalogue does not know (the header comes from `/api/show`).
 - **It does not get a purpose fit.** A family's purposes are the curator's
@@ -3373,7 +3355,7 @@ and unloads models on request):
 | | Ollama v0.34.2 | LM Studio | llama-server (router mode) |
 |---|---|---|---|
 | **Load with no text** | `POST /api/generate` with no prompt, `options.num_ctx`, `keep_alive`, answering `done_reason: "load"` (D-71, 6) | `POST /api/v1/models/load {model, context_length}`. The REST call has no idle timeout; `lms load --ttl` does | `POST /models/load {model}`. The context comes from the router's start-up arguments or a preset, not from the request |
-| **Chat** | `POST /api/chat` (`messages`, `stream`, `keep_alive`, `options.num_ctx`), the name ending in `:local` | `POST /v1/chat/completions`, which keeps nothing. Not `/api/v1/chat`, which stores the conversation unless `store: false` | `POST /v1/chat/completions` with `model` |
+| **Where the person chats** (D-74) | No page of its own. Its desktop app on macOS and Windows, opened with `ollama://`, cannot be told the model (D-71, 3 and 4) | Its own app, which chats with LM Studio's own models. Phase 3 checks whether it can be opened on a model | A built-in web page at its own address, on by default (`--ui`). Phase 3 checks whether the page can be opened on a model |
 | **Pull from Hugging Face** | `hf.co/{owner}/{repo}:{file}` through its registry client (D-71, 7): the exact file | `POST /api/v1/models/download {model: <the repository's URL>, quantization}`, status at `/api/v1/models/download/status/{job_id}`: chosen by quant label | `POST /models {model: "owner/repo:quant"}`, progress on `/models/sse`: chosen by quant label (`--hf-file` exists only at start-up) |
 | **Add a file already on disk** | `POST /api/blobs/sha256:<digest>`, then `POST /api/create {model, files}`: a copy (D-71, 8) | `lms import <path>` with `--hard-link` on the same drive, else `--copy`. Its default moves the file, and the adapter never uses the default. CLI only | A preset entry (`--models-preset`) that points at the file where it is: no copy |
 | **Report the models folder** | Show's `FROM` line, else the `server config` log line (D-71, 9) | `downloadsFolder` in `settings.json`, as `lms` reads it. Not in the REST API | `GET /models` lists each model's `path`. The folders are the router's `LLAMA_CACHE` and `--models-dir` |
@@ -3389,13 +3371,15 @@ branches on an Ollama assumption.
 // can do, so that a button can say before the click what it will cost.
 Capabilities() Capabilities
 
-// Load puts a model in memory without sending it any text (D-74's chat,
-// D-71 6). LoadRequest has no text field; archtest pins its shape.
+// Load puts a model in memory without sending it any text (D-74's
+// "Start chatting", D-71 6). LoadRequest has no text field; archtest pins
+// its shape.
 Load(ctx context.Context, req LoadRequest) error
 
-// Chat sends the person's turns and streams the reply (D-74). Only
-// internal/server/chat.go calls it.
-Chat(ctx context.Context, req ChatRequest, onEvent func(ChatEvent) error) error
+// ChatPage is the address of a chat page the runtime serves itself, on
+// loopback, opened on the model where the page allows (D-74). Valid only
+// when Capabilities().ChatPage; the advisor never sends it any text.
+ChatPage(ctx context.Context, model string) (url string, err error)
 
 // Import adds a GGUF file already on this computer (D-76) and returns the
 // name the runtime now knows it by, which the adapter builds from
@@ -3418,7 +3402,7 @@ type Capabilities struct {
 	PullExactFile bool         // Pull fetches the named file; false: the runtime picks by quant label
 	LoadContext   bool         // Load applies LoadRequest.NumCtx
 	LoadKeepAlive bool         // Load applies LoadRequest.KeepAlive
-	Chat          bool
+	ChatPage      bool         // the runtime serves a chat page of its own (D-74)
 	Import        ImportMode   // "copy" | "link_or_copy" | "in_place"; "" = cannot import
 }
 
@@ -3444,7 +3428,7 @@ The capability values per runtime:
 | `PullExactFile` | yes | no | no |
 | `LoadContext` | yes | yes | no |
 | `LoadKeepAlive` | yes | yes (through `lms load --ttl`) | no (its idle sleep is a start-up option) |
-| `Chat` | yes | yes | yes |
+| `ChatPage` | no | no | yes |
 | `Import` | `copy` | `link_or_copy` | `in_place` |
 | `Control` | `runtime_app` with the app; `advisor` for a server it starts; `administrator` for a system service | `runtime_app` | `advisor` |
 
@@ -3459,8 +3443,6 @@ Existing types change too:
 - `Installed` gains `Remote` and `RemoteKnown`, and `ModelInfo` gains
   `RemoteHost` and `WeightsSHA256` (D-73; for Ollama, the `FROM` line,
   D-71, 9).
-- `ChatRequest`, `ChatEvent` and the `conversation.Turn` it carries are
-  D-74's.
 
 **Why methods and capabilities, not errors.** Every runtime can do each of
 these in some form. What differs is what it costs and who acts: a copy
@@ -3474,8 +3456,8 @@ genuinely have nothing for them: no log, no installer, no files of its
 own.
 
 **Where each is built.** `ModelsFolder`, reading only, in P2-3, which needs
-it for the free-space check. `Capabilities`, `Load`, `Chat` and the
-`Remote` fields in P2-4. `SetModelsFolder` in P2-7. The Hugging Face
+it for the free-space check. `Capabilities`, `Load`, `ChatPage` (which
+Ollama answers with none) and the `Remote` fields in P2-4. `SetModelsFolder` in P2-7. The Hugging Face
 fields of `ModelSource` in P2-9. `Import` in P2-10. Until each is built,
 the Ollama adapter does not implement it and the interface does not have
 it yet; each step adds its method to the interface and to the adapter
@@ -3494,8 +3476,7 @@ way step 3 checked Ollama's.
   interface (a compile-time check), and the Ollama adapter's
   `Capabilities` values are asserted.
 - `internal/archtest`: `LoadRequest` is pinned to `Model`, `NumCtx` and
-  `KeepAlive`, and has no other string field. `ChatRequest` is pinned
-  (D-74). No package above `internal/backend` (server, bench, recommend,
+  `KeepAlive`, and has no other string field. No package above `internal/backend` (server, bench, recommend,
   watch, estimate) contains a string literal equal to a runtime's
   registered name, so no caller can branch on "ollama".
 - `internal/server`: tests with a fake backend for every `ImportMode` and

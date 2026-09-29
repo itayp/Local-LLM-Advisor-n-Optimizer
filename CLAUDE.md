@@ -53,21 +53,17 @@ disagree, the code is wrong.
   `ModelSearch`, carries what the person typed or picked, and only on
   their click (D-75, built in P2-8). Every other purpose's requests are a
   function of the data files and the version.
-- **The benchmark sends the suite's text and nothing else.** A benchmark
-  prompt is a `suite.Prompt`, which only the embedded suite can make.
+- **A model is sent the suite's text and nothing else.** A prompt is a
+  `suite.Prompt`, which only the embedded suite can make;
   `backend.GenerateRequest` has no free-text field, and only
   `internal/bench` calls `Generate` (D-8, D-65; `internal/archtest`).
-- **The chat sends the person's turns to a model on this computer, and
-  keeps nothing** (D-74, built in P2-4; until then there is no chat). A
-  turn is a `conversation.Turn`, made only by decoding the chat page's
-  request, which cannot be printed, logged or marshalled.
-  `backend.ChatRequest` carries turns and numbers only, and only
-  `internal/server/chat.go` calls `Chat`. Nothing is stored or measured.
-  The benchmark never sees a turn and the chat never sends the suite.
+  `Load` (D-78, built in P2-4) puts a model in memory and has no text
+  field at all. The advisor has no chat of its own: "Start chatting"
+  loads the model and opens the chat this computer already has (D-74).
 - **A model on this computer means its weights run here** (D-73, built in
-  P2-4). Every path that sends text to a model refuses a remote one
-  (Ollama's cloud models: `remote_host`), and the Ollama adapter names
-  the model with Ollama's `:local` suffix so that Ollama refuses it too.
+  P2-4). The benchmark and `Load` refuse a remote model (Ollama's cloud
+  models: `remote_host`), and the Ollama adapter names the model with
+  Ollama's `:local` suffix so that Ollama refuses it too.
 - **A download is a curated tag or a file the advisor resolved itself.**
   `POST /api/models/pull` takes an `ollama_tag` the curated catalogue
   lists, or a `resolved` id the server issued for a Hugging Face file it
@@ -113,8 +109,8 @@ internal/tray/          the tray icon + menu (step 11, D-61): wraps gogpu/systra
 internal/autostart/     "start at login" (step 11): one file per OS behind a cmdRunner/registry seam — a LaunchAgent plist (macOS), the HKCU Run key (Windows, the same value the installer's own checkbox writes), a systemd user unit (Linux, no sudo)
 internal/update/        Check (step 11, D-62): one GET to GitHub's release feed, only on a manual "Check for updates" click, through egress.Client(egress.UpdateCheck)
 internal/egress/        the advisor's whole outbound network (step 12, D-64): hosts.go — the one allow-list, by purpose; Client (HTTPS to listed hosts only, every redirect checked) and Local (loopback only, no proxy)
-internal/suite/         the benchmark suite (data/bench/) and suite.Prompt, the sealed type that is the only text the benchmark can send a model (step 12, D-65; the chat's own sealed path is D-74)
-internal/archtest/      tests that read the source (step 12, D-64, D-65, D-69, D-70): only egress reaches the network, D-11's import direction, only bench calls Generate (and, from P2-4, only the chat handler calls Chat, D-74), dependencies and CI actions pinned
+internal/suite/         the benchmark suite (data/bench/) and suite.Prompt, the sealed type that is the only text a model can be sent (step 12, D-65)
+internal/archtest/      tests that read the source (step 12, D-64, D-65, D-69, D-70): only egress reaches the network, D-11's import direction, only bench calls Generate, dependencies and CI actions pinned
 internal/winapp/        Windows-only identity (step 11, D-63): registers the AUMID and its display name so toast notifications, the tray and the installer all read as one app; a no-op on macOS/Linux
 internal/figure/        Source, Bytes, Rate, Public, Check and CheckSeparation — product rule 4, and public data kept apart
 internal/version/       Version (set by -ldflags), GoVersion
@@ -333,13 +329,12 @@ files and the version alone, the same on every install, with one exception:
 person typed, and the listing and header reads of a repository they
 opened, only on their click, only to `huggingface.co` and `hf.co`, with the
 screen saying so. The daily watch never uses it. Nothing else the user
-typed is sent anywhere; the chat's words go only to the runtime on this
-computer (D-74). A Hugging Face download of an uncurated model is made by
-Ollama, from a tag the server built (D-75). No telemetry, no token, no
-cookie. The Hugging
-Face client (`internal/catalog/hf`) follows redirects only to Hugging
-Face's own hosts, reads GGUF headers with range requests and refuses a
-whole-file answer, and honours the Hub's rate limits (D-34). The daily watch
+typed is sent anywhere. A Hugging Face download of an uncurated model is
+made by Ollama, from a tag the server built (D-75). No telemetry, no token,
+no cookie. The Hugging Face client (`internal/catalog/hf`) follows
+redirects only to Hugging Face's own hosts, reads GGUF headers with range
+requests and refuses a whole-file answer, and honours the Hub's rate
+limits (D-34). The daily watch
 never makes the first contact: until the person has fetched the model list,
 a scheduled check does nothing (D-68). Tests give their fake servers a plain
 transport (`c.HTTP.Transport = http.DefaultTransport`); only test files may.
