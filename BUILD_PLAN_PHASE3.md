@@ -6,9 +6,11 @@ graphics card as a single pool. Backlog (c), (d) and (h), and the start of
 PRD §18.
 
 **This is an outline, not yet a plan.** The prompts get written when phase 3
-starts, not now. They depend on the Backend methods phase 2 adds (load with no
-text, pull from a Hugging Face source, create from a local file, the models
-folder; P2-2 checks each one against LM Studio's and llama-server's APIs).
+starts, not now. They depend on the Backend methods phase 2 adds
+(ARCHITECTURE.md D-78: `Capabilities`, `Load`, `Chat`, `Import`,
+`ModelsFolder`, `SetModelsFolder`). P2-2 checked each against LM Studio's and
+llama-server's documentation; D-78's table is what phase 3 re-checks against
+running copies, as step 3 did for Ollama.
 Prompts written today would describe an interface that is about to change.
 
 ## Why phase 3 and not phase 2
@@ -19,7 +21,7 @@ Prompts written today would describe an interface that is about to change.
   of their own. llama.cpp is run from a terminal. Both are real users, but
   not the one the product is built for.
 - **The interface should settle before it gets a second implementation.**
-  Phase 2 adds four Backend methods. Building llama.cpp in the same phase
+  Phase 2 adds six Backend methods (D-78). Building llama.cpp in the same phase
   means designing each of them against three moving runtimes at once.
 - **Multiple GPUs need hardware and documents that aren't in yet.** Itay's
   llama.cpp setup notes (backlog d) haven't been shared, and the Mac Pro is

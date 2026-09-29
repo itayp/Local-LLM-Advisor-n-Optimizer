@@ -5,14 +5,15 @@ D-27 to D-31 in step 3, D-32 to D-37 in step 4, D-38 to D-43 in step 5,
 D-44 to D-51 in step 6, D-52 in step 7, D-53 to D-56 in step 9b, D-57 in
 step 10, D-58 to D-59 in the recommendation-ranking backlog work that
 followed, D-60 to D-63 in step 11, D-64 to D-70 in step 12 (security and
-privacy review).
+privacy review), D-71 to D-78 in phase 2 step P2-2 (the phase's decisions).
 Every later step inherits this shape. A change to a decision here is a new
 numbered entry that supersedes the old one — the old entry stays, marked
 superseded, so the reasoning survives.
 
 **Read with:** `PRD — Local LLM Advisor & Optimizer.md` (what and why),
-`BUILD_PLAN.md` (the fourteen steps), `CLAUDE.md` (the product rules and the
-repo conventions — the working reference for every session).
+`BUILD_PLAN.md` (the fourteen steps), `BUILD_PLAN_PHASE2.md` (phase 2),
+`CLAUDE.md` (the product rules and the repo conventions — the working
+reference for every session).
 
 ## Context
 
@@ -92,6 +93,10 @@ the LM Studio local API and llama-server's API, so llama.cpp and LM Studio
 
 ## D-4. Runtimes and chat apps are two lists
 
+*Superseded in part by D-74: the advisor has a minimal chat page of its
+own, sent only to this computer. Chat apps are still detected, and
+Ollama's app is opened on a click as the next step, never told what to do.*
+
 **Decision.** A runtime is what runs the model (Ollama now; llama.cpp, LM
 Studio later) and the advisor drives it. A chat app is where the person talks
 to the model (Ollama's own app, LM Studio, the Open WebUI desktop app, Jan,
@@ -156,6 +161,10 @@ beginner shown fifty thousand repos has been shown nothing.
 
 ## D-8. The advisor calls no LLM to do its own job
 
+*Amended by D-74: besides the benchmark's `Generate`, the chat page's
+`Chat` sends the person's own words to the model they chose. D-8 still
+holds: the advisor reads, scores and keeps none of it.*
+
 **Decision.** Estimation is arithmetic; recommendation is rules over data.
 The only models that run are the ones being tested.
 
@@ -169,6 +178,10 @@ The only models that run are the ones being tested.
   true and testable.
 
 ## D-9. No telemetry and no community database in the MVP
+
+*Amended by D-74 and D-75: the chat sends the person's words to this
+computer's runtime only, and a search sends its words to Hugging Face on
+the person's click, saying so on the screen.*
 
 **Decision.** Nothing leaves the machine except requests to the model
 sources. PRD §11 is Phase 2 and needs its own privacy note before a line of
@@ -361,6 +374,10 @@ A build tag is explicit and cheap.
 - Hashed assets under `/assets/` are cached for a year; `index.html` is not.
 
 ## D-16. Where things live on the customer's disk
+
+*Superseded in part by D-72: the models folder shown and checked is the
+one Ollama reports, not `OLLAMA_MODELS`, and the advisor sets no
+environment variable.*
 
 **Decision.** The daemon writes to one folder, `store.DefaultDataDir()`
 (D-13), and reads model files from wherever the runtime keeps them (the
@@ -647,6 +664,10 @@ file uses the same parser and strict decoding (`DisallowUnknownField`).
 
 ## D-27. The Backend interface is frozen against three runtimes, not one
 
+*Amended by D-78: six more methods (`Capabilities`, `Load`, `Chat`,
+`Import`, `ModelsFolder`, `SetModelsFolder`), checked against the same
+three runtimes.*
+
 **Decision.** `internal/backend.Backend` (`Name`, `Detect`, `Models`, `Show`,
 `Running`, `Pull`, `Generate`, `Unload`, `Install`, `Start`) was checked
 against Ollama's HTTP API, LM Studio's local REST API (`/api/v1/models`,
@@ -704,6 +725,10 @@ Ollama process reads as unreachable quickly rather than hanging a page load.
 *Superseded in part by D-66: Ollama does publish a checksum with every
 release (`sha256sum.txt`), and the install is now pinned to a release and
 refused unless the file matches it.*
+
+*Superseded in part by D-72: where Ollama's app is installed, Start opens
+the app (hidden) instead of running `ollama serve`, because the app stops
+any server it did not start.*
 
 **Decision.** Per product rule 5, `Install` and `Start` only ever run from a
 UI action that already said what it would do; the methods themselves change
@@ -1640,6 +1665,10 @@ one laptop's run is evidence enough to move a constant or a rule.
 
 ## D-52. Step 7: onboarding polls rather than streams, sits in front of the router, and a chat app is detected, never driven
 
+*Superseded in part by D-74: "Use it" becomes "Start chatting", a chat
+page inside the advisor. Detection stays, and Ollama's app is opened on a
+click (`ollama://`) as the next step, never driven.*
+
 **Decision.**
 
 - **Install and pull progress are polled, not streamed.** D-49 gave
@@ -2351,6 +2380,9 @@ D-64 to D-70. The findings, with what was checked where, are
 
 ## D-64. One allow-list, enforced at the transport: `internal/egress`
 
+*Amended by D-75: a fifth purpose, `ModelSearch`, the one purpose whose
+requests carry what the person typed or picked, only on their click.*
+
 **Context.** Before step 12 there were four allow-lists in four packages
 (`hf.allowedHost`, `external.PermittedHosts`, `update.PermittedHost`,
 `ollama.downloadHost`) and twelve places that built their own
@@ -2395,6 +2427,11 @@ public sources give their fake servers a plain transport (`c.HTTP.Transport
 calibrate) are developer tools, not shipped, and are outside the scan.
 
 ## D-65. Nothing typed is ever sent: a model receives only the suite's text
+
+*Amended by D-73 (the model, not only the runtime, must be on this
+computer), D-74 (the chat is a second, sealed path to a model; the
+benchmark still sends only the suite) and D-75 (a download may also be a
+Hugging Face file the advisor resolved itself).*
 
 **Decision.** D-9 and D-44 said nothing the user typed is ever sent, and
 that the code should make that impossible rather than merely true. Step 12
@@ -2505,6 +2542,10 @@ site could frame the app and trick a click on "Download 5 GB".
 
 ## D-68. Local data: private, deleted on request, and no first contact the person did not make
 
+*Amended by D-72 (the advisor writes no environment variable; the Linux
+`ollama/models-location` file is kept; refused while models are being
+moved) and D-76 (what the advisor reads outside its data folder).*
+
 **Decision.**
 
 - **Private.** `store.Open` creates the data folder with mode 0700 and the
@@ -2599,3 +2640,864 @@ by nothing. Beyond D-64 to D-69, these became tests
   the copy uses ’. `psString` escaped only `'`, so a reason containing
   "advisor’s" ended the literal and ran the rest as PowerShell. All four are
   doubled now. `notify-send` gets `--` before its text.
+
+---
+
+Phase 2 step P2-2 (the phase's decisions, 2026-09-29) adds D-71 to D-78.
+They answer backlog (n), (q) and (r), and supersede (g). No product code
+changed in this step; each entry names the step that builds it and the
+tests that will hold it.
+
+## D-71. What phase 2 decides against: Ollama v0.34.2 read from its source, and the other two runtimes' current APIs
+
+**Context.** The entries after this one turn on what Ollama, its desktop
+app and Hugging Face actually do, and several of the answers are not what
+Ollama's own docs say. So the facts are here once, each with the file it
+was read from, and D-72 to D-78 cite them by number. Checked on 2026-09-29
+against:
+
+- **Ollama v0.34.2**, tag commit `dfabde45` — the release
+  `runtime-support.yaml` pins (D-24) — read from the tag's source, desktop
+  app included (`app/`);
+- **LM Studio**: its documentation repository (`lmstudio-ai/docs`
+  `9b8bc20`, 2026-09-08; the v1 REST API needs LM Studio 0.4.0) and its CLI
+  (`lmstudio-ai/lms` `1b7181b`, 2026-09-25);
+- **llama-server**: `ggml-org/llama.cpp` `526c43b` (2026-09-29),
+  `tools/server/README.md`;
+- **Hugging Face**: the search request as `huggingface_hub` `f151320`
+  (`hf_api.py`, `list_models`) sends it, and `huggingface/hub-docs`
+  `761bb84` (`docs/hub/ollama.md`).
+
+**Findings about Ollama v0.34.2.**
+
+1. **The desktop app owns its server's models folder.** The app starts
+   `ollama serve` itself, with `OLLAMA_MODELS` set to its own setting
+   `Models` when that folder exists, and to the default with a warning when
+   it does not (`app/server/server.go`, `cmd`). An unsaved setting defaults
+   to the app's own `OLLAMA_MODELS`, else `~/.ollama/models`
+   (`app/store/store.go`, `Settings`). But the app's screens save the whole
+   settings object on every change, the defaulted folder included
+   (`app/ui/app/src/hooks/useSettings.ts`, `components/Settings.tsx`), and
+   the app makes such a change by itself during its own onboarding
+   (`routes/onboarding.tsx`) and the first time its chat picks a model
+   (`hooks/useSelectedModel.ts`). From then on the app ignores
+   `OLLAMA_MODELS`. The setting is **Model location** in Ollama's Settings,
+   a folder picker, and changing it restarts the server
+   (`app/ui/ui.go`, `settings`). Ollama's docs still say to set the
+   variable (`docs/windows.mdx`, "Changing Model Location";
+   `docs/faq.mdx`). As in D-24, what the code does is what counts.
+2. **The app stops any other `ollama serve`.** When its own server exits
+   with code 1 (the port is taken), it terminates every `ollama serve`
+   process on the machine and starts its own (`reapServers`,
+   `app/server/server_unix.go`, `server_windows.go`). An `ollama serve` the
+   advisor started is cut off the moment the person opens Ollama's app,
+   along with the model it had loaded and any download it was running, and
+   the replacement uses the app's folder.
+3. **The app exists on macOS and Windows only.** Everything under `app/`
+   builds with `//go:build windows || darwin`. On Linux, Ollama is the CLI
+   and, from the install script, a systemd service.
+4. **The app can be opened, not told what to do.** It registers the
+   `ollama://` scheme (`app/darwin/Ollama.app/Contents/Info.plist`;
+   `app/ollama.iss`, `HKCU\Software\Classes\ollama`) and accepts only a bare
+   `ollama://`, `ollama://apps` and `ollama://connect`
+   (`app/cmd/app/app.go`, `parseURLScheme`). Its chat uses its own stored
+   `SelectedModel`. With none stored it picks gemma3 by graphics memory if
+   that is installed, else the first entry of its featured list
+   (`hooks/useSelectedModel.ts`, `hooks/useModels.ts`), and the built-in
+   featured list begins with four cloud models
+   (`server/model_recommendations.go`). Its own UI server listens on a
+   random port with a per-run token (`app/cmd/app/app.go`). That is
+   private to the app, not an API.
+5. **Some models run on Ollama's computers, through the local Ollama.** A
+   cloud model is listed by `/api/tags` and `/api/show` with `remote_host`
+   set (`api/types.go`), and a generate or chat request for it is forwarded
+   there (`server/routes.go`, the `RemoteHost` branches of both handlers;
+   `server/cloud_proxy.go`). A name ending in `:local` makes Ollama refuse
+   a remote model with a 404 instead of forwarding
+   (`internal/modelref/modelref.go`; the `modelSourceLocal` checks in both
+   handlers). LM Studio's LM Link does the same with another computer's
+   model behind `localhost` (LM Studio docs,
+   `1_developer/0_core/lmlink.md`). A runtime on loopback (D-65) does not
+   by itself mean the model runs on this computer.
+6. **A load needs no text.** `/api/generate` with no prompt schedules the
+   model with the request's options and `keep_alive` and answers
+   `done_reason: "load"`. `/api/chat` with no messages does the same
+   (`server/routes.go`, `GenerateHandler`, `ChatHandler`).
+7. **A pull goes wherever the name says.** The host part of a model name
+   is the registry Ollama contacts, over HTTPS (`types/model/name.go`,
+   `BaseURL`). Nothing in the tree special-cases `hf.co`: Hugging Face
+   serves the registry protocol itself. `hf.co/{owner}/{repo}:{tag}` takes
+   a quant label, case-insensitively, or the exact file name as the tag.
+   A repository may carry `template`, `system` and `params` files, and
+   Ollama applies them (hub-docs, `docs/hub/ollama.md`). Each part of a
+   name is `[A-Za-z0-9_][A-Za-z0-9_.-]*` and at most 80 characters, and the
+   owner part may not contain a dot (`types/model/name.go`, `isValidPart`).
+8. **A local file goes into Ollama as a copy.** `POST
+   /api/blobs/sha256:<digest>` streams a file into Ollama's blobs folder
+   and refuses a body whose hash differs. `POST /api/create` then names a
+   model from the digests (`server/routes.go`, `CreateBlobHandler`;
+   `api/types.go`, `CreateRequest`). `CreateRequest` also has `System`,
+   `Template`, `Parameters` and `RemoteHost`, which are free text and a
+   remote host, and the advisor must never set them. A model created from
+   split GGUF files is marked as requiring Ollama 0.35.0
+   (`server/create_split_gguf.go`).
+9. **Ollama says where its models are, in two places.** `/api/show`'s
+   Modelfile for every local model contains `FROM <models
+   folder>/blobs/sha256-<digest>` (`server/routes.go`, `ShowHandler`;
+   `server/images.go`, `Model.String`), which gives the folder and the
+   weights' own SHA-256. And the server logs `server config
+   env="map[… OLLAMA_MODELS:<folder> …]"` when it starts
+   (`server/routes.go`, `Serve`). No API endpoint returns the folder.
+10. **A server prunes the folder it starts on.** At startup it deletes
+    partial downloads, and blobs that no manifest references once they are
+    an hour old (`server/images.go`, `PruneLayers`,
+    `layerPruneGracePeriod`).
+11. **The Windows uninstaller offers to delete the default models folder**
+    (`%USERPROFILE%\.ollama\models`, with its checkbox ticked by default)
+    and looks nowhere else, so a folder chosen in Model location survives an
+    uninstall (`app/ollama.iss`, `[Code]`, `DelTree`; `docs/windows.mdx`,
+    "Uninstall"). The installer shows no folder page
+    (`DisableDirPage=yes`), and its `/DIR=` moves only the program.
+
+LM Studio's and llama-server's answers to the same questions are D-78's
+table.
+
+**Consequences.** These facts belong to v0.34.2. When the pin in
+`runtime-support.yaml` moves, this list is re-checked the way that file is
+(D-24), and an entry that rests on a fact that changed is superseded.
+P2-4 and P2-7 check facts 1, 2, 4, 5 and 9 on a real macOS and Windows
+install before they ship, because those are the facts read from source
+and not yet seen on the fleet.
+
+## D-72. The models folder: Ollama's own setting, read back from Ollama, never an environment variable
+
+**Amends** D-16 (the models folder is `OLLAMA_MODELS` or the OS default),
+D-29 (Start on macOS and Windows) and D-68 ("delete everything", and what
+the advisor writes where). Answers backlog (n)'s question about the folder;
+P2-3 builds the reading, P2-7 the choice and the move.
+
+**Decision.**
+
+- **The advisor writes no environment variable, `OLLAMA_MODELS` or any
+  other, on any operating system.** Backlog (n) assumed it would set
+  `OLLAMA_MODELS` as a user variable on Windows. On macOS and Windows the
+  app decides. It passes its own saved Model location to the server it
+  starts, and reads the variable only while that setting has never been
+  saved, which lasts until the app's own onboarding or its first chat saves
+  it (D-71, 1). The variable would still reach an `ollama serve` the
+  advisor started, and the app stops those as soon as it runs (D-71, 2).
+  So the variable would split one person's models across two
+  folders depending on who started Ollama last: a model downloaded to D:
+  while the advisor's server ran would be gone from the list once the app
+  took over. The build plan asked which is worse, a variable left behind or
+  models the person can't reach. Here the variable is what would make them
+  unreachable, so the advisor sets none, and nothing is left behind. On
+  macOS the variable would also need `launchctl setenv`, which a restart
+  forgets.
+- **The folder in use is the one Ollama reports.** `ModelsFolder` (D-78)
+  reads it from the `FROM` line that `/api/show` gives for any installed
+  local model, and otherwise from the `server config` line of the running
+  server's log (D-71, 9). Before Ollama has ever run, the OS default is
+  shown as where Ollama *will* put models, and labelled that way. Every
+  free-space check (P2-3), Settings' "your models" path (D-16) and the move
+  below read this answer, never the variable. It also corrects today's
+  reading (`hardware.Storage.ModelsDir`, from the variable), which is wrong
+  for anyone who has changed Ollama's Model location. That reading stays
+  as the fallback for "before Ollama has run".
+- **Who changes the folder depends on who runs Ollama**
+  (`ModelsFolder.Control`, D-78):
+  - **Ollama's app (macOS, Windows): the folder is the app's Model
+    location.** The advisor recommends a drive and creates the folder on a
+    button that says so ("Create the folder D:\Ollama models"). The app
+    falls back to its default when the folder does not exist (D-71, 1). The
+    advisor then shows the steps in words, with the path and a copy button:
+    open Ollama, then Settings, then Model location, then Browse, and pick
+    that folder. The app restarts its own server. The advisor watches for
+    Ollama to report the new folder and says "Ollama now saves models to
+    D:\Ollama models" only once it has. It never writes the app's settings
+    database and never calls the app's private UI server (D-71, 4). This
+    takes a few clicks in Ollama's window and no terminal (rule 1), and
+    each change is the person's own click on a control that says what it
+    does (rule 5).
+  - **An Ollama the advisor starts itself, with no app:** the Linux
+    user-space install (D-29), and `ollama serve` on a Mac that has only
+    the CLI. Here the advisor sets the folder. The folder is written to
+    `ollama/models-location` beside the program in the data folder, and
+    passed as `OLLAMA_MODELS` only to the process the advisor starts
+    (`serveEnv`, which already sets `OLLAMA_HOST` the same way). This is
+    one button: "Keep models on /mnt/data (812 GB free)".
+  - **A system service** (the Linux install script's systemd unit):
+    changing it needs an administrator. The advisor says where the models
+    are and what would move them, in words. It never asks for a password
+    (D-29).
+- **Start follows the same rule** (amends D-29). Where Ollama's app is
+  installed, "Start Ollama" opens the app hidden: `open -j -a Ollama` on
+  macOS, `ollama app.exe hidden` on Windows (the app's own "hidden"
+  argument, `app/cmd/app/app.go`). The server is then always the app's,
+  using the app's folder, and the app never cuts off a model the advisor
+  loaded or a download it started (D-71, 2). The advisor starts `ollama
+  serve` directly only where there is no app. The runtime-path log (D-31,
+  D-46) is then Ollama's own `server.log`, already one of the documented
+  locations the adapter reads.
+- **When the choice is offered.** Before the first download (onboarding's
+  recommendations and Settings), not at install time, because the
+  installer's `/DIR` moves only the program (D-71, 11). It is offered again
+  whenever a download would not fit (P2-3). Only fixed local drives are
+  offered (P2-7): the app goes back to its default folder when the chosen
+  one is missing (D-71, 1), so a removable drive would silently send
+  downloads back to C:. When the folder Ollama reports is not the one the
+  person chose, the advisor says so in words ("Ollama can't reach D:\Ollama
+  models and is saving to C:\Users\…\.ollama\models instead. Is the drive
+  connected?").
+- **Moving models that already exist** is one flow on every OS (P2-7):
+  1. It is refused while a download, a test, a chat load or an import is
+     running, and unless the new drive has room for every blob plus
+     P2-3's margin.
+  2. The old folder is the one Ollama reports. Ollama keeps running on it
+     during the copy: blobs never change once written, and each is named
+     by its own hash.
+  3. The advisor copies every `blobs/sha256-<hex>`, never a `-partial`
+     file or anything else, then checks each copy's SHA-256 against its
+     name. Progress is shown in bytes. Cancel deletes what has been copied
+     into the new folder so far, and nothing else.
+  4. It copies `manifests/` last, so a server that starts on the new folder
+     finds every blob referenced and prunes nothing (D-71, 10). If the
+     manifests changed during the copy, it copies the difference and
+     checks again.
+  5. The switch happens as above: the person changes Ollama's setting, or
+     the advisor changes it for the Ollama it runs itself.
+  6. Confirm: Ollama reports the new folder, and `/api/tags` lists the same
+     names with the same digests as before the move. Otherwise the advisor
+     says which models are missing, says that everything is still in the
+     old folder, and offers the way back (the same steps, or automatic for
+     its own Ollama).
+  7. Only then does it offer "Delete the old copy (frees 23 GB)", as its
+     own click. That deletes exactly the files the advisor copied and
+     checked, by name, and then the folders it leaves empty. It never
+     deletes a folder recursively and never deletes a file it did not copy
+     (the rule D-68 set for the data folder).
+
+  Links (a symbolic link on macOS or Linux, a junction on Windows) from the
+  old path to the new one are not used. Ollama's own setting would then
+  show a folder whose contents live somewhere else. And Ollama's Windows
+  uninstaller offers to delete `%USERPROFILE%\.ollama\models`, with the box
+  ticked by default (D-71, 11). Through a junction, that would delete the
+  models on the new drive.
+- **"Delete everything" (D-68)** has no variable to undo. The Linux
+  `ollama/models-location` file is kept with the program it configures
+  (D-68 already keeps `ollama/`), so the models stay reachable, and the
+  answer says so. Models in a folder the person moved them to are theirs
+  and are kept. An old copy not yet deleted is listed with its path and
+  size, so the person can remove it. The button is refused while a move is
+  running (added to D-68's list of refusals).
+
+**Why.** Ollama's app, not the environment, decides where the app's server
+keeps models, and it stops any server it did not start. A setting the
+advisor wrote anywhere but in the app would work until the app next ran.
+Reading the folder back from Ollama is the same principle as D-31 (the
+runtime path is what the runtime did, not what the environment suggests).
+
+**Costs.** On macOS and Windows, choosing the drive is not one button. It
+takes several clicks in Ollama's own window, which the advisor cannot see:
+it knows the change happened only once Ollama reports it. If Ollama
+redesigns its Settings screen, the steps (copy in `en.ts`, checked against
+the pinned release) need rewriting. One fallback, the `server config` log
+line, depends on Ollama's log format. The primary reading, Show's `FROM`
+line, depends on its Modelfile format. Both are pinned by fixtures.
+
+**Held by** (tests P2-3 and P2-7 write):
+
+- `internal/backend/ollama`: `ModelsFolder` from a `/api/show` fixture's
+  `FROM` line, from a `server.log` fixture's `server config` line (both in
+  v0.34.2's format), and unknown when neither exists. `Start` opens the app
+  when one is found (per-OS `env` fixtures) and runs `ollama serve` only
+  when none is. `serveEnv` sets `OLLAMA_MODELS` only from
+  `ollama/models-location`.
+- `internal/archtest`: no string in the daemon's code names `setx`,
+  `launchctl setenv`, `HKCU\Environment` or `SetEnvironmentVariable`, and
+  `OLLAMA_MODELS` appears only in `internal/hardware` (reading) and
+  `internal/backend/ollama` (reading the log, and `serveEnv`).
+- The move, on `t.TempDir()` folders holding real small blobs: a corrupted
+  copy is caught. A cancel leaves the old folder byte-identical and removes
+  every file it copied. Manifests are written after every blob has been
+  checked (the order is asserted). "Delete the old copy" removes exactly
+  the copied names and does nothing without its own confirmation.
+- `internal/server/deletedata.go`: `ollama/models-location` is kept, and
+  the button is refused (409) while a move is running.
+
+## D-73. A model on this computer means its weights run here: cloud and linked models get no text
+
+**Amends** D-65 ("The runtime is this computer"). P2-4 builds it, because
+it touches the adapter's `Generate` and adds `Chat`.
+
+**Decision.** Any path that sends text to a model accepts only a model
+whose weights are on this computer. Today that is the benchmark, which
+sends the suite. After D-74 it is also the chat, which sends the person's
+words.
+
+- `backend.Installed` gains `Remote` and `RemoteKnown`, and
+  `backend.ModelInfo` gains `RemoteHost`. The Ollama adapter fills them
+  from `remote_host` in `/api/tags` and `/api/show` (D-71, 5).
+- The Ollama adapter's `Generate`, `Chat` and `Load` send the model's name
+  with Ollama's `:local` suffix (D-71, 5), so Ollama itself refuses a
+  remote model instead of forwarding it. Before sending, they also refuse
+  a model that `Show` reports as remote, with `ErrRemoteModel`, and never
+  send anything for it.
+- A backend that cannot tell whether a model is remote reports
+  `RemoteKnown: false`, and such a model gets no test and no chat. LM
+  Studio's LM Link is the case phase 3 has to settle (D-78).
+- On the Models screen a remote model says "Runs on Ollama's computers,
+  not this one", with no test and no chat button. The recommendation
+  engine and the benchmark picker treat it as not installed, because its
+  fit on this machine means nothing.
+
+**Why.** At v0.34.2 a cloud model's name reaches ollama.com through the
+local Ollama (D-71, 5). A benchmark of an installed cloud model would send
+the suite's text there today and time someone else's computer. D-65
+checked that the runtime was on loopback. That was never the whole of
+product rule 7.
+
+**Costs.** A person who uses Ollama's cloud models cannot test or chat
+with them in the advisor. That is intended: the advisor is about this
+computer.
+
+**Held by.** Adapter tests against a fake Ollama that lists a model with
+`remote_host`: `Generate`, `Chat` and `Load` refuse it before any request
+reaches `/api/generate` or `/api/chat` (the fake records every request),
+and every request the adapter does send names the model with `:local`.
+`POST /api/bench` answers 422 `remote_model`. An `internal/archtest` shape
+test holds `Installed.Remote` and `RemoteKnown`.
+
+## D-74. The chat: a first conversation inside the advisor, sent only to this computer; Ollama's app is the next step
+
+**Supersedes in part** D-4 ("the product never becomes a chat interface";
+"'Use it' ends with the model's exact name and a copy button") and D-52 ("a
+chat app is detected, never driven"). **Amends** D-8 and D-65. Answers
+backlog (r) and supersedes (g). PRD §22 is read as described under "Why"
+below. P2-4 builds it.
+
+**The three options, against D-71's facts.** The test is product rule 1 on
+all three operating systems, for a person who has never heard of Open
+WebUI.
+
+- **(a) Hand-off only.** On macOS and Windows the advisor can start Ollama,
+  load the model with no text (D-78, `Load`) and open Ollama's app through
+  `ollama://`. It cannot choose the model inside the app (D-71, 4). The app
+  opens on its own last choice, or, on a fresh install, on the first entry
+  of its featured list, which is a cloud model. A person told "chat with
+  Qwen3.5 9B" would land on a different model, possibly one running on
+  Ollama's computers. The model can only be named for them to pick. On
+  Linux there is no Ollama app (D-71, 3). Of the other apps D-52 detects,
+  LM Studio keeps its own copies of models and cannot use Ollama's, and
+  the others reach Ollama's models only once they are connected to Ollama
+  in their own settings, which the person would have to know to do. So (a)
+  fails the test on Linux.
+- **(b) A chat page inside the advisor.** It works the same way on all
+  three operating systems. It is the only option that can guarantee the
+  model is the one the person picked, and the only one in which the
+  advisor itself keeps the promise that the words stay on this computer
+  (D-73). It costs a second path by which text reaches a model.
+- **(c) Both, hand-off first.** This passes the test, but it means building
+  and testing two flows. On macOS and Windows the main path keeps (a)'s
+  problems, the wrong model and the cloud default, and the built-in page
+  would be exercised only on the fleet's one Linux machine.
+
+**Decision: (b).** "Start chatting with <name>" opens a chat page in the
+advisor on all three operating systems. Where Ollama's app is installed,
+the page offers **"Continue in Ollama's app"** as the next step, for saved
+conversations, files and pictures. That link opens `ollama://`, the app's
+own documented way to be opened; nothing is typed into the app or chosen
+for it. Beside it are the model's exact name, the copy button (backlog a)
+and one sentence: "In Ollama's app, pick <name> from the model menu. Models
+whose names end in 'cloud' run on Ollama's computers, not yours."
+Detecting chat apps (D-52) stays, for that link and for a short list of
+other apps. The list's copy stops implying they can use the model as they
+stand.
+
+**The flow** (P2-4). It is one button per stage, each saying what it will
+do:
+
+1. "Download 5.2 GB", with P2-3's space check, when the model is not
+   installed.
+2. "Start Ollama" when it is stopped. Where the app is installed, this
+   opens the app hidden (D-72).
+3. "Start chatting with <name>". This loads the model with no text (D-78,
+   `Load`) at the context the recommendation chose for it (D-41), so the
+   first message does not reload it, and keeps it loaded for
+   `ChatKeepAlive` (30 minutes, CHOSEN, in a config struct with what would
+   settle it). Then the page opens.
+
+Home's "most useful thing" card becomes "Continue chatting with <name>".
+The last model chatted with is a setting, not history (D-57's settings
+table).
+
+**What the page is, and what it will not grow into.** This list is the
+scope PRD §22 protects. A request for anything outside it reopens this
+entry; it is not a follow-up task.
+
+- One installed local model, named at the top. Changing model means going
+  back to the Models screen.
+- Text only, streamed, with a Stop button. Replies are shown as text:
+  nothing in a reply is run, fetched or rendered as HTML (the CSP already
+  forbids remote images, D-67). A reasoning model's thinking appears
+  folded under the reply.
+- No system prompt, no settings, no tools, no attachments, no pictures, no
+  saved conversations, no export and no second model.
+- Nothing is stored. The conversation lives in the page's memory, not in
+  `localStorage`, and is gone when the page closes. The daemon keeps
+  nothing between requests: each request carries the conversation so far.
+- Nothing is measured. A chat produces no speed figure, no calibration
+  evidence (D-48) and no benchmark row. A personal performance model built
+  from real use (PRD §13) would need its own decision and its own privacy
+  note.
+
+**What stays sealed.** The benchmark is unchanged. `backend.GenerateRequest`
+keeps exactly its fields, a `suite.Prompt` is still the only text
+`Generate` carries, and only `internal/bench` calls `Generate`.
+`TestOnlyTheBenchmarkAsksAModelAnything` and
+`TestAModelIsSentOnlyTheSuitesText` stay as they are. The benchmark never
+sends the person's text, and the chat never sends the suite.
+
+**The new path, and what it may carry.**
+
+- **`internal/conversation`** (a leaf package, layer 0). `Turn` has a role
+  (`user` or `assistant`) and text, both unexported. The only maker is
+  `conversation.Decode`, which reads the chat page's JSON with limits: at
+  most `MaxTurns` turns and `MaxTurnBytes` bytes each, inside D-67's 1 MiB
+  body cap. `String`, `GoString`, `Format` and `LogValue` return a
+  placeholder, and `MarshalJSON` returns an error, so a turn's text cannot
+  reach a log line, an error message or a stored JSON column by accident.
+- **`backend.ChatRequest{Model string; Turns []conversation.Turn; NumCtx
+  int; KeepAlive time.Duration}`**. It has no system prompt, template, raw
+  mode, tools, images, format or options map. `Backend.Chat(ctx, req,
+  onEvent)` streams `ChatEvent{Text, Thinking, Done, DoneReason}`, with no
+  timings. The Ollama adapter sends `/api/chat` through `egress.Local`,
+  with the `:local` name and D-73's check.
+- **`POST /api/chat`** (`internal/server/chat.go`) streams the reply to the
+  page. Closing the request cancels the generation (the context), and the
+  Stop button does exactly that. **`POST /api/chat/load`** loads the model
+  with no text. Both sit behind D-67's checks like every API route.
+- **D-8 holds.** The advisor still calls no model to do its own job. The
+  chat is the person's own use, started by them, and the advisor reads,
+  scores and keeps none of it.
+
+**The archtest rules.** They sit beside "only the benchmark calls
+`Generate`", which stays.
+
+1. `TestOnlyTheChatHandlerSendsAConversation`: a call to a runtime's
+   `Chat`, or a `backend.ChatRequest` literal, anywhere but
+   `internal/server/chat.go` and `internal/backend/...` fails. So does a
+   `conversation.Turn` made outside `internal/conversation`.
+2. `TestAChatCarriesOnlyTheTurns`: `ChatRequest`'s fields and types are
+   pinned, as `GenerateRequest`'s are, and `Turn` has no exported field.
+3. `TestTheBenchmarkNeverSeesAConversation`: only `internal/server`,
+   `internal/backend` and its adapters import `internal/conversation`.
+   `bench`, `store`, `watch`, `recommend` and `catalog/...` never do.
+4. `TestTheChatHandlerStoresNothing`: `internal/server/chat.go` refers to
+   neither the store nor the logger. It reports errors through a helper
+   that takes an error code, never a turn. `internal/conversation`'s own
+   tests check that `fmt`, `slog` and `encoding/json` never show a turn's
+   text.
+5. The egress rules are unchanged: the adapter reaches only loopback.
+
+**Why (b), given PRD §22.** The PRD's worry is a product that competes
+with Open WebUI by becoming another chat interface. A page that holds one
+conversation with one model and remembers nothing does not compete with
+it. It is the last step of "recommend, test, use", which D-4 left to chat
+apps that, as D-71 shows, cannot be pointed at the model. And the page ends
+by pointing to a real chat app.
+
+**Costs.** This is a second path by which text reaches a model, and the
+first that carries the person's own words. A sealed type and archtest
+rules hold its shape, but it is a looser guarantee than "only the suite
+ever reaches a model". People will ask for history and files; the list
+above is the answer until this entry is reopened. Loading takes as long as
+the machine takes. The page says what is happening and, when a test has
+measured it, how long the load took last time (a measurement, shown as
+one, rule 4).
+
+**P2-4's model is Opus**, because this loosens a guarantee that archtest
+enforces (a model receives only the suite), as the build plan asked.
+
+## D-75. Free text to Hugging Face: search on a click, under its own purpose; a download is a curated tag or a file the advisor resolved itself
+
+**Amends** D-64 ("the requests are a function of the data files and the
+version alone"), D-65 ("a download is a curated name") and CLAUDE.md's
+Network convention. Answers the search half of backlog (q). P2-8 builds the
+search and P2-9 the download.
+
+**Decision.**
+
+- **Allowed, narrowly.** A new egress purpose, `ModelSearch`, on
+  `huggingface.co`, and on `hf.co` with its subdomains (the download
+  network that header reads are redirected to). It covers three requests:
+  the Hub's model search, the file listing of a repository the person
+  opened, and range reads of that repository's GGUF headers. The header
+  reads follow D-33 and D-34's rules: ranges from byte 0, no whole-file
+  answer, the same limits, no token. It is the one purpose whose requests
+  carry what the person typed or chose. Every other purpose keeps D-64's
+  rule, and the daily watch never uses this one.
+- **The search** is `GET
+  https://huggingface.co/api/models?search=<words>&filter=gguf&gated=false&sort=downloads&limit=<N>`,
+  the parameters `huggingface_hub`'s `list_models` sends (D-71). It returns
+  GGUF repositories only, ungated only (the advisor never sends a token,
+  D-34), most downloaded first, one page, and the advisor never follows
+  the `Link` header to another page. The words are trimmed, at most 100
+  characters, and sent only as the URL-encoded `search` parameter, only
+  when the person presses **"Search Hugging Face"**. Never on typing,
+  never on a timer.
+- **A pasted link** (or `owner/repo`) is parsed on the server. The host
+  must be `huggingface.co` or `hf.co`, with or without `www.`, and the path
+  `/{owner}/{repo}`, optionally followed by `/blob/…`, `/resolve/…` or
+  `/tree/…`. Owner and repo are checked against a strict repository-id
+  grammar before either becomes part of a URL. Anything else is refused
+  with a sentence.
+- **The screen says it, above the box:** "Your search words go to Hugging
+  Face." Nothing about a search is stored. Results and opened repositories
+  live in the daemon's memory for the screen, with a size limit, never in
+  SQLite, and are gone at restart. There is no search history.
+- **Not behind the Advanced toggle.** Search is its own screen, **"Find a
+  model"**, reached from the Models screen and the navigation. It never
+  appears on Recommend or in onboarding, where the curated list stays the
+  front door (D-7). The person who needs it already knows a model's name,
+  not the Advanced toggle. The privacy exception is made visible by the
+  button's words, not by hiding the box. The technical columns in its
+  results are behind Advanced, as everywhere else (rule 2).
+- **How a pull accepts a model that is not in the catalogue** (amends
+  D-65). `POST /api/models/pull` accepts exactly one of two fields:
+  - `ollama_tag`: a tag the curated catalogue lists, as now;
+  - `resolved`: an id the server issued when, during this run of the
+    daemon, it resolved a file itself. That means it listed the repository
+    (pinned to a commit), chose one GGUF file from the listing, and read
+    that file's header. The server keeps `{repo, commit, file, size,
+    sha256}` (the SHA-256 being the listing's LFS hash) and the header, in
+    memory, under a random 128-bit id, with a size limit, forgotten at
+    restart.
+
+  The request cannot name a repository, a file or a host. The server
+  builds `ModelSource{Kind: huggingface_gguf, HFRepo, HFFile, HFQuant,
+  HFSHA256}` (D-78) from its own record, and the Ollama adapter turns that
+  into `hf.co/{owner}/{repo}:{file}`. The exact file name as the tag
+  (D-71, 7) means Ollama fetches the file the estimate was made for.
+  Where the file name is not a valid Ollama tag (over 80 characters, or a
+  character outside the grammar), the adapter uses the quant label when
+  exactly one file in the repository has it, and otherwise the model is
+  refused with a sentence. After the pull, the adapter compares the
+  weights' SHA-256 from Show's `FROM` line (D-71, 9) with the recorded LFS
+  hash. A mismatch is said in words, and removing the model is offered.
+- **Models split across several files** (`-0000N-of-0000M`) are refused in
+  phase 2, with a sentence (D-71, 8).
+- **Ollama, not the advisor, contacts Hugging Face for the download**, as
+  it contacts its own library for a curated tag (D-65). The download is
+  therefore not a line in `hosts.go`, and SECURITY.md's table gets its own
+  row for it: what goes to Hugging Face is the address of the one file
+  the person was shown. The repository's own `template`, `system` and
+  `params` files come with it (D-71, 7). They are the model's
+  configuration, applied by Ollama as for any model. The advisor's
+  benchmark is raw (D-44) and ignores them; the advisor's chat adds no
+  system prompt of its own.
+
+**Why product rule 7 still holds.** Rule 7 says no prompt, no file and no
+usage data leaves the machine. A search the person runs, sent where the
+screen says, carries no prompt and no file, and nothing about the person or
+the computer beyond what any web request carries (D-64: the User-Agent and
+the connection's address). It is the person using Hugging Face through the
+advisor, on their own click. **This reading of rule 7 is a product
+decision, and it needs Itay's explicit agreement** (`claude/p2-2-decisions.md`
+asks for it).
+
+**Costs.** These are the first requests whose content the advisor does not
+control. The audit statement in `hosts.go` changes from "a function of the
+data files and the version" to "a function of the data files and the
+version, and, for `ModelSearch` only, of what the person typed or picked,
+on their click". Search results are repositories no curator has reviewed;
+D-77 decides what they get.
+
+**Held by** (tests P2-8 and P2-9 write):
+
+- `internal/egress`: the `ModelSearch` purpose and its lines in
+  `hosts.go`. A `ModelSearch` client cannot reach `epoch.ai`, GitHub or
+  `ollama.com`.
+- `internal/archtest`: `egress.ModelSearch` is referenced only in
+  `internal/catalog/hf`'s search file and in the server handler that calls
+  it. `internal/watch` and `internal/catalog/refresh` never reference it.
+- `internal/catalog/hf`: the repository-id grammar against `..`, extra
+  slashes, percent-encoding, Unicode look-alikes and over-long names. A
+  thousand-item answer is cut to N. A `Link` header is not followed. A
+  redirect off Hugging Face is refused (egress already refuses it).
+- `internal/server`: the pull refuses a body with any field other than
+  `ollama_tag` or `resolved`, refuses an unknown id, and never turns
+  request text into a tag. The tag builder is tested against Ollama's name
+  grammar, and the digest check after a pull is tested. The search refuses
+  more than 100 characters (400). A test store that fails every write
+  shows the search writes nothing.
+
+## D-76. A model file already on this computer: a scan on a click, a pasted path under Advanced, and only the header until the person adds it
+
+**Amends** D-16 (what the advisor reads outside its data folder) and D-68's
+inventory. Answers the local-file half of backlog (q). P2-10 builds it.
+
+**Decision: both a scan and a pasted path.**
+
+- **"Look for model files on this computer"** (not behind Advanced) runs
+  only when that button is pressed. It lists `.gguf` files in three known
+  places:
+  - LM Studio's models folder, found the way LM Studio's own CLI finds it:
+    `downloadsFolder` in `<LM Studio home>/settings.json`, else
+    `~/.lmstudio/models` (`lms` `1b7181b`, `src/subcommands/importCmd.ts`,
+    `src/lmstudioPaths.ts`). The advisor reads that one key and nothing
+    else of LM Studio's;
+  - the Hugging Face cache (`HF_HUB_CACHE`, else `$HF_HOME/hub`, else
+    `~/.cache/huggingface/hub`);
+  - the Downloads folder.
+
+  The walk has a depth limit and considers only names ending `.gguf`. It
+  follows a symbolic link only when the link resolves inside the same root
+  (the Hugging Face cache's snapshots point into its own blob folder).
+  Nothing else is opened.
+- **A pasted path** (behind Advanced, because typing a path is technical):
+  an absolute path to a regular file ending `.gguf`.
+- **The browser's file picker is not used.** It hands a page a file's
+  contents, not its path, and uploading gigabytes through the page would be
+  wrong.
+- **What is read, and when.** For each file found or pasted, the advisor
+  reads the GGUF header: the metadata and the tensor table, within D-33's
+  limits. Reading past the tokenizer costs nothing on the network locally,
+  and the tensor table gives the parameter count that the Hub supplies for
+  a remote file. The whole file is read only after the person presses "Add
+  to Ollama (copies 5.2 GB)": once to hash it (Ollama's blob upload needs
+  the digest first) and once to stream it to Ollama (D-71, 8). The advisor
+  writes nothing outside its data folder; Ollama writes its own copy into
+  its own folder.
+- **Ids, not paths, in the add request.** The server keeps what it found
+  in memory under ids, as in D-75. `POST /api/models/import {"found":
+  "<id>"}` is the only way to add a file. The advisor builds the model's
+  name from the file name, cleaned to Ollama's name grammar (D-71, 7), and
+  never takes a name from the request. The create request carries only the
+  name and the file digests: never a system prompt, a template, parameters
+  or a remote host (D-71, 8).
+- **The costs are said on the button and before the click.** The copy
+  doubles the disk space used until the person deletes the original, and
+  P2-3's check applies to it. A file in LM Studio's folder stays LM
+  Studio's, and deleting it removes it from LM Studio. The advisor never
+  deletes the original.
+- **Odd files.** An image reader (`mmproj*.gguf`) beside the weights is
+  offered with them. A split model, a partial download, or a file that is
+  not GGUF gets a sentence each, and nothing is added.
+
+**Why both.** The scan covers the common cases, a model LM Studio or a
+browser downloaded, without asking a beginner to know a path. The pasted
+path covers everything else, for people who know where their file is.
+
+**Costs.** The advisor now reads places it did not read before: the names
+in three folders and the headers of `.gguf` files, only on the click and
+only under the roots named here. SECURITY.md lists them (P2-10). Hashing
+and copying a multi-gigabyte file takes minutes, so progress is shown in
+bytes.
+
+**Held by** (tests P2-10 writes, on `t.TempDir()` trees built from the GGUF
+header fixtures): a symbolic link out of a root is not followed. A file
+not ending `.gguf` is never opened (the file-system seam records every
+open). A relative path or a directory is refused when pasted. The import
+handler refuses any field but `found`. A fake Ollama asserts that the
+create request's JSON has exactly `model` and `files`. A digest mismatch
+reported by Ollama is shown in words. The scan's roots are defined in one
+file.
+
+## D-77. What a model that is not on the advisor's list gets, and what it does not
+
+**Amends** D-7 (the catalogue is the candidate set) by saying what an
+uncurated model gets outside it. P2-8 builds the estimate screen, P2-9 and
+P2-10 the paths that install such a model.
+
+**Decision.**
+
+- **It gets a memory fit and a speed range from its file** (D-38 to D-40),
+  with confidence at most medium (D-42), and the sentence "This model
+  isn't on the advisor's list, so this is based only on its file." A
+  benchmark of it can make that configuration's confidence high, as for
+  any model.
+- **An architecture the parser or the estimator does not know** gets
+  "can't estimate this one" and the reason, never a number (D-21).
+- **A mixture-of-experts model whose file does not say how much of it runs
+  per word** gets the memory fit (every expert is resident) and no speed
+  range, with a sentence saying why. Active parameters are not guessed.
+- **Facts from the file are shown as facts:** whether it has an image
+  reader, the context it was trained for, and the licence the repository
+  states.
+- **Tests and chat: yes,** once it is installed and runs locally (D-73).
+  Its test calibrates this machine, as D-48 already allows for a model the
+  catalogue does not know (the header comes from `/api/show`).
+- **It does not get a purpose fit.** A family's purposes are the curator's
+  ordered judgement (D-41). A name or a tag containing "coder" is not that
+  judgement, and inferring one would be a guess or a model deciding (D-8).
+- **It does not get public scores.** D-53 stores only values that an alias
+  maps to a curated size, and nothing is matched fuzzily. A GGUF
+  repository's `base_model` is only its uploader's claim.
+- **It does not get a place among the recommendation cards**, on
+  Recommend, in onboarding or in the watch's notifications (D-57). Those
+  come only from the curated list, and the watch never tracks an
+  uncurated model. It can still be "the model you have" in the
+  comparison with the current model (D-41), as any unknown installed model
+  can today.
+- **On the Models screen** it says where it came from ("From Hugging Face,
+  not on the advisor's list", or "From a file on this computer") and shows
+  its speed, estimated or measured, like any other model.
+
+**Why.** A recommendation card is the advisor saying "this is good for
+what you asked", and it can only say that where a curator has looked. Fit
+and speed are arithmetic, and they apply to any file.
+
+**Costs.** A strong model that no curator has reviewed never appears as a
+recommendation, however well it would suit the machine. The curator's
+signal for it is the one D-7 and D-57 already give: installed models the
+catalogue does not know are listed for the curator.
+
+**Held by.** An engine test that an uncurated installed model never
+appears in `Result.Recommendations`. Estimator tests that a header with an
+unknown architecture gives unknown, not a number, and that confidence
+never exceeds medium without a measurement. A watch test that a model with
+no catalogue id is never checked or notified.
+
+## D-78. The Backend methods phase 2 adds, checked against LM Studio and llama-server, and the capabilities that say what each runtime can do
+
+**Amends** D-27 (the interface frozen against three runtimes) and D-3.
+Like D-27, every method was checked against all three runtimes before it
+was settled, so that phase 3's llama.cpp and LM Studio backends are one
+more file each, not a rewrite.
+
+**What each runtime offers** (D-71's sources; LM Studio's REST v1 needs
+0.4.0, and llama-server's column is its router mode, the one that loads
+and unloads models on request):
+
+| | Ollama v0.34.2 | LM Studio | llama-server (router mode) |
+|---|---|---|---|
+| **Load with no text** | `POST /api/generate` with no prompt, `options.num_ctx`, `keep_alive`, answering `done_reason: "load"` (D-71, 6) | `POST /api/v1/models/load {model, context_length}`. The REST call has no idle timeout; `lms load --ttl` does | `POST /models/load {model}`. The context comes from the router's start-up arguments or a preset, not from the request |
+| **Chat** | `POST /api/chat` (`messages`, `stream`, `keep_alive`, `options.num_ctx`), the name ending in `:local` | `POST /v1/chat/completions`, which keeps nothing. Not `/api/v1/chat`, which stores the conversation unless `store: false` | `POST /v1/chat/completions` with `model` |
+| **Pull from Hugging Face** | `hf.co/{owner}/{repo}:{file}` through its registry client (D-71, 7): the exact file | `POST /api/v1/models/download {model: <the repository's URL>, quantization}`, status at `/api/v1/models/download/status/{job_id}`: chosen by quant label | `POST /models {model: "owner/repo:quant"}`, progress on `/models/sse`: chosen by quant label (`--hf-file` exists only at start-up) |
+| **Add a file already on disk** | `POST /api/blobs/sha256:<digest>`, then `POST /api/create {model, files}`: a copy (D-71, 8) | `lms import <path>` with `--hard-link` on the same drive, else `--copy`. Its default moves the file, and the adapter never uses the default. CLI only | A preset entry (`--models-preset`) that points at the file where it is: no copy |
+| **Report the models folder** | Show's `FROM` line, else the `server config` log line (D-71, 9) | `downloadsFolder` in `settings.json`, as `lms` reads it. Not in the REST API | `GET /models` lists each model's `path`. The folders are the router's `LLAMA_CACHE` and `--models-dir` |
+| **Set the models folder** | The app's Model location, set by the person with the advisor's steps; `OLLAMA_MODELS` for a server the advisor starts (D-72) | LM Studio's My Models tab, set by the person. No API or CLI | `LLAMA_CACHE` / `--models-dir` of a router the advisor starts (phase 3 supervises it, as D-29 does Ollama on Linux) |
+| **Say which models are remote** | `remote_host`; the `:local` suffix refuses them (D-71, 5) | LM Link serves another computer's model behind `localhost`. Phase 3 must find how the API marks one, or report `RemoteKnown: false` | Not applicable: it serves only files it loaded |
+
+**Decision.** `backend.Backend` gains six methods, written once for every
+runtime. Where runtimes differ, `Capabilities` says so, so that no caller
+branches on an Ollama assumption.
+
+```go
+// Capabilities is static for an adapter and install: what this runtime
+// can do, so that a button can say before the click what it will cost.
+Capabilities() Capabilities
+
+// Load puts a model in memory without sending it any text (D-74's chat,
+// D-71 6). LoadRequest has no text field; archtest pins its shape.
+Load(ctx context.Context, req LoadRequest) error
+
+// Chat sends the person's turns and streams the reply (D-74). Only
+// internal/server/chat.go calls it.
+Chat(ctx context.Context, req ChatRequest, onEvent func(ChatEvent) error) error
+
+// Import adds a GGUF file already on this computer (D-76) and returns the
+// name the runtime now knows it by, which the adapter builds from
+// f.BaseName under its own naming rules.
+Import(ctx context.Context, f LocalFile, progress func(PullProgress)) (name string, err error)
+
+// ModelsFolder reports where the runtime keeps models, as the runtime
+// itself says (D-72), and who can change that.
+ModelsFolder(ctx context.Context) (ModelsFolder, error)
+
+// SetModelsFolder is valid only when ModelsFolder reports Control ==
+// FolderAdvisor. Otherwise it returns ErrFolderNotAdvisors, and callers
+// check Control first.
+SetModelsFolder(ctx context.Context, path string) error
+```
+
+```go
+type Capabilities struct {
+	PullFrom      []SourceKind // the ModelSource kinds Pull accepts
+	PullExactFile bool         // Pull fetches the named file; false: the runtime picks by quant label
+	LoadContext   bool         // Load applies LoadRequest.NumCtx
+	LoadKeepAlive bool         // Load applies LoadRequest.KeepAlive
+	Chat          bool
+	Import        ImportMode   // "copy" | "link_or_copy" | "in_place"; "" = cannot import
+}
+
+type LoadRequest struct {
+	Model     string
+	NumCtx    int           // 0 = the runtime's default
+	KeepAlive time.Duration // 0 = the runtime's default
+}
+
+type ModelsFolder struct {
+	Path    string
+	Known   bool          // false: Path is where the runtime will put models by default
+	How     string        // how it was read, in words ("from a model Ollama has installed")
+	Control FolderControl // "advisor" | "runtime_app" | "administrator" | "unknown"
+}
+```
+
+The capability values per runtime:
+
+| | Ollama | LM Studio | llama-server |
+|---|---|---|---|
+| `PullFrom` | `ollama_tag`, `huggingface_gguf` | `huggingface_gguf` | `huggingface_gguf` |
+| `PullExactFile` | yes | no | no |
+| `LoadContext` | yes | yes | no |
+| `LoadKeepAlive` | yes | yes (through `lms load --ttl`) | no (its idle sleep is a start-up option) |
+| `Chat` | yes | yes | yes |
+| `Import` | `copy` | `link_or_copy` | `in_place` |
+| `Control` | `runtime_app` with the app; `advisor` for a server it starts; `administrator` for a system service | `runtime_app` | `advisor` |
+
+Existing types change too:
+
+- `ModelSource` for `huggingface_gguf` gains `HFQuant` and `HFSHA256`,
+  filled by the server from its own record (D-75). A runtime that fetches
+  by file uses `HFFile`. A runtime that picks by quant label uses
+  `HFQuant`, and the server refuses such a source when more than one file
+  in the repository carries that label. Each adapter compares `HFSHA256`
+  with what it downloaded, where it can read the weights' hash.
+- `Installed` gains `Remote` and `RemoteKnown`, and `ModelInfo` gains
+  `RemoteHost` and `WeightsSHA256` (D-73; for Ollama, the `FROM` line,
+  D-71, 9).
+- `ChatRequest`, `ChatEvent` and the `conversation.Turn` it carries are
+  D-74's.
+
+**Why methods and capabilities, not errors.** Every runtime can do each of
+these in some form. What differs is what it costs and who acts: a copy
+against a link, the exact file against a quant label, the advisor against
+the person in another app's settings. The screen has to say that before
+the click ("copies 5.2 GB" or "uses the file where it is"; "Ollama fetches
+this exact file" or "LM Studio picks the Q4_K_M file"), so it has to be
+known without trying. The optional interfaces (`LoadObserver`,
+`InstallSizer`, `DataForgetter`) stay optional, because a runtime can
+genuinely have nothing for them: no log, no installer, no files of its
+own.
+
+**Where each is built.** `ModelsFolder`, reading only, in P2-3, which needs
+it for the free-space check. `Capabilities`, `Load`, `Chat` and the
+`Remote` fields in P2-4. `SetModelsFolder` in P2-7. The Hugging Face
+fields of `ModelSource` in P2-9. `Import` in P2-10. Until each is built,
+the Ollama adapter does not implement it and the interface does not have
+it yet; each step adds its method to the interface and to the adapter
+together.
+
+**Costs.** The interface grows from eleven methods to seventeen, and every
+future runtime implements all of them. LM Studio's import and idle timeout
+go through its CLI (`lms`), so its adapter runs a program, as the Ollama
+adapter runs `tar` on Linux. The LM Studio and llama-server columns are
+read from documentation, not from a running copy; phase 3 checks them the
+way step 3 checked Ollama's.
+
+**Held by.**
+
+- `internal/backend`: a fake backend in the tests implements the whole
+  interface (a compile-time check), and the Ollama adapter's
+  `Capabilities` values are asserted.
+- `internal/archtest`: `LoadRequest` is pinned to `Model`, `NumCtx` and
+  `KeepAlive`, and has no other string field. `ChatRequest` is pinned
+  (D-74). No package above `internal/backend` (server, bench, recommend,
+  watch, estimate) contains a string literal equal to a runtime's
+  registered name, so no caller can branch on "ollama".
+- `internal/server`: tests with a fake backend for every `ImportMode` and
+  every `FolderControl`, showing that the words on the button and the
+  screen follow the capability, not the runtime's name.

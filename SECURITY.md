@@ -62,6 +62,10 @@ A few things live outside that folder, and only after you ask for them:
 - **While Ollama is installing:** the installer, in your computer's temporary
   folder.
 
+The app never changes your account's environment variables
+(`OLLAMA_MODELS` included) or Ollama's own settings. Where Ollama keeps
+your models is Ollama's setting, and you change it in Ollama.
+
 It does **not** keep the text a model writes during a test. It only keeps
 the timings.
 

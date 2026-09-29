@@ -49,11 +49,33 @@ disagree, the code is wrong.
   audit (D-64). The runtime is reached only through `egress.Local`, which
   dials loopback addresses only. `internal/archtest` fails the build if any
   other package builds a client, dials, listens, turns off TLS checks,
-  sends a credential or names a download tool.
-- **A model is sent the suite's text and nothing else.** A prompt is a
-  `suite.Prompt`, which only the embedded suite can make;
+  sends a credential or names a download tool. One purpose,
+  `ModelSearch`, carries what the person typed or picked, and only on
+  their click (D-75, built in P2-8). Every other purpose's requests are a
+  function of the data files and the version.
+- **The benchmark sends the suite's text and nothing else.** A benchmark
+  prompt is a `suite.Prompt`, which only the embedded suite can make.
   `backend.GenerateRequest` has no free-text field, and only
   `internal/bench` calls `Generate` (D-8, D-65; `internal/archtest`).
+- **The chat sends the person's turns to a model on this computer, and
+  keeps nothing** (D-74, built in P2-4; until then there is no chat). A
+  turn is a `conversation.Turn`, made only by decoding the chat page's
+  request, which cannot be printed, logged or marshalled.
+  `backend.ChatRequest` carries turns and numbers only, and only
+  `internal/server/chat.go` calls `Chat`. Nothing is stored or measured.
+  The benchmark never sees a turn and the chat never sends the suite.
+- **A model on this computer means its weights run here** (D-73, built in
+  P2-4). Every path that sends text to a model refuses a remote one
+  (Ollama's cloud models: `remote_host`), and the Ollama adapter names
+  the model with Ollama's `:local` suffix so that Ollama refuses it too.
+- **A download is a curated tag or a file the advisor resolved itself.**
+  `POST /api/models/pull` takes an `ollama_tag` the curated catalogue
+  lists, or a `resolved` id the server issued for a Hugging Face file it
+  listed and read the header of during this run (D-65, D-75; the id path
+  is built in P2-9). `POST /api/models/import` takes a `found` id from the
+  scan or the path check (D-76, P2-10). The server builds the source and
+  the name. A request never carries a tag, repository, file or path that
+  reaches a runtime.
 - **Rule 4 is a type.** A number a user will see about this machine is a
   `figure.Bytes` or `figure.Rate` with `source: "estimated" | "measured"`;
   a number someone else published about a model is a `figure.Public`, which
@@ -91,8 +113,8 @@ internal/tray/          the tray icon + menu (step 11, D-61): wraps gogpu/systra
 internal/autostart/     "start at login" (step 11): one file per OS behind a cmdRunner/registry seam — a LaunchAgent plist (macOS), the HKCU Run key (Windows, the same value the installer's own checkbox writes), a systemd user unit (Linux, no sudo)
 internal/update/        Check (step 11, D-62): one GET to GitHub's release feed, only on a manual "Check for updates" click, through egress.Client(egress.UpdateCheck)
 internal/egress/        the advisor's whole outbound network (step 12, D-64): hosts.go — the one allow-list, by purpose; Client (HTTPS to listed hosts only, every redirect checked) and Local (loopback only, no proxy)
-internal/suite/         the benchmark suite (data/bench/) and suite.Prompt, the sealed type that is the only text a model can be sent (step 12, D-65)
-internal/archtest/      tests that read the source (step 12, D-64, D-65, D-69, D-70): only egress reaches the network, D-11's import direction, only bench calls Generate, dependencies and CI actions pinned
+internal/suite/         the benchmark suite (data/bench/) and suite.Prompt, the sealed type that is the only text the benchmark can send a model (step 12, D-65; the chat's own sealed path is D-74)
+internal/archtest/      tests that read the source (step 12, D-64, D-65, D-69, D-70): only egress reaches the network, D-11's import direction, only bench calls Generate (and, from P2-4, only the chat handler calls Chat, D-74), dependencies and CI actions pinned
 internal/winapp/        Windows-only identity (step 11, D-63): registers the AUMID and its display name so toast notifications, the tray and the installer all read as one app; a no-op on macOS/Linux
 internal/figure/        Source, Bytes, Rate, Public, Check and CheckSeparation — product rule 4, and public data kept apart
 internal/version/       Version (set by -ldflags), GoVersion
@@ -219,7 +241,9 @@ they are for the user; codes are for the UI's logic.
 Anything new the advisor writes goes in the data folder. A file written
 anywhere else is listed in ARCHITECTURE.md D-68 and in `SECURITY.md`, and
 "delete everything" (`POST /api/data/delete`, `internal/server/deletedata.go`)
-removes it. A backend that writes files implements
+removes it. The advisor sets no environment variable and never writes
+another app's settings: where Ollama keeps models is Ollama's own setting,
+read back from Ollama (D-72). A backend that writes files implements
 `backend.DataForgetter`.
 
 **Store.** Every table has integer `id` + RFC 3339 UTC `created_at`;
@@ -304,8 +328,15 @@ A new host is a line in `hosts.go` with what is fetched and why, reviewed
 as a product decision. `external.PermittedHosts` stays the per-source
 ceiling that `data/catalog/external.yaml` cannot exceed (D-53), and is
 tested to sit inside egress's list. The requests are a function of the data
-files and the version alone, the same on every install. Nothing the user
-typed is ever sent anywhere. No telemetry, no token, no cookie. The Hugging
+files and the version alone, the same on every install, with one exception:
+`ModelSearch` (D-75, from P2-8) sends the Hub's search with the words the
+person typed, and the listing and header reads of a repository they
+opened, only on their click, only to `huggingface.co` and `hf.co`, with the
+screen saying so. The daily watch never uses it. Nothing else the user
+typed is sent anywhere; the chat's words go only to the runtime on this
+computer (D-74). A Hugging Face download of an uncurated model is made by
+Ollama, from a tag the server built (D-75). No telemetry, no token, no
+cookie. The Hugging
 Face client (`internal/catalog/hf`) follows redirects only to Hugging
 Face's own hosts, reads GGUF headers with range requests and refuses a
 whole-file answer, and honours the Hub's rate limits (D-34). The daily watch

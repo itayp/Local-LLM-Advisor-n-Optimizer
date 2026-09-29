@@ -24,11 +24,11 @@ the detail.
 | k. Windows notifications permission | Resolved in code (D-63); a real toast not yet seen on Windows | Step 11's gate (a real installer run), not a phase |
 | l. Sizes on the Benchmarks picker | Open | Phase 2, P2-5 |
 | m. The 9–18 GB gap in the catalogue | Open | Phase 2, P2-6 |
-| n. Pick the drive, check space before downloads | Open | Phase 2, P2-3 and P2-7 |
+| n. Pick the drive, check space before downloads | Decided (D-72): the folder is Ollama's own setting, read back from Ollama; the advisor sets no environment variable | Phase 2, P2-3 and P2-7 |
 | o. "Looking at images" is unclear | Done (P2-1); the daemon's own "vision" wording is left, see the section | Phase 2, P2-6 (Go copy) |
 | p. Explainer breaks its sentence | Done (P2-1) | — |
-| q. Any model from Hugging Face, or a local file | Open, needs a decision | Phase 2, P2-2, P2-8 to P2-10 |
-| r. From a chosen model to an open chat | Open, needs a decision | Phase 2, P2-2 and P2-4 |
+| q. Any model from Hugging Face, or a local file | Decided (D-75 to D-77): search on a click under its own egress purpose, not behind Advanced; a folder scan on a click and a pasted path under Advanced | Phase 2, P2-8 to P2-10 |
+| r. From a chosen model to an open chat | Decided (D-74): a minimal chat page in the advisor, Ollama's app as the next step | Phase 2, P2-4 |
 
 ## a. A copy button anywhere a model name is shown
 
@@ -603,6 +603,15 @@ Setting the variable changes the machine, so it needs its own button
 (product rule 5) and a decision about whether "delete everything" undoes
 it (D-68). That decision is P2-2.
 
+**Decided (P2-2, ARCHITECTURE.md D-72).** The pinned release's desktop app
+does have a Model location setting, and once the app has saved its settings
+(its own onboarding does) it ignores `OLLAMA_MODELS`. It also stops any
+`ollama serve` it did not start. So the advisor sets no variable: on macOS
+and Windows it recommends the drive and walks the person through Ollama's
+own setting, then confirms from what Ollama reports. On the Linux user-space
+install it sets the folder itself. Moving existing models is copy, verify,
+switch, and delete the old copy only on a second click.
+
 ## o. "Looking at images": what is it, and is it a normal category?
 
 **From:** Itay, 2026-09-29. **Scheduled:** phase 2, step P2-1.
@@ -683,6 +692,15 @@ Hugging Face (`hf.co/{owner}/{repo}:{quant}`). A local file can go into
 Ollama with `/api/blobs` + `/api/create`, which copies it into Ollama's own
 folder, so it needs the disk check from (n).
 
+**Decided (P2-2, ARCHITECTURE.md D-75 to D-77).** Search is allowed under its
+own egress purpose, sent only on a click, with the screen saying the words go
+to Hugging Face. It is its own screen, not behind Advanced, and never on
+Recommend or in onboarding. A download is a curated tag or an id the server
+issued for a file it resolved itself. Local files: a scan of LM Studio's
+folder, the Hugging Face cache and Downloads on a click, plus a pasted path
+under Advanced. An uncurated model gets a fit and a speed estimate, and no
+purpose fit, public scores or recommendation card.
+
 ## r. From "this is the model I want" to a running model and an open chat
 
 **From:** Itay, 2026-09-29. **Scheduled:** phase 2, steps P2-2 (the decision)
@@ -698,3 +716,9 @@ app), D-8 / D-65 (only the benchmark talks to a model, and only with the
 suite's text), and product rule 1 (no terminal). Ollama's own desktop app
 exists on macOS and Windows but not on Linux, so hand-off alone leaves Linux
 users without a chat.
+
+**Decided (P2-2, ARCHITECTURE.md D-74).** A minimal chat page inside the
+advisor, on all three operating systems: one model, text only, nothing
+stored, sent only to this computer's runtime. Ollama's app is the next step
+where it is installed, opened on a click. It can't be told which model to
+use, and on a fresh install it opens on a cloud model. P2-4 is Opus.

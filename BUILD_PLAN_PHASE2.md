@@ -10,8 +10,9 @@ earlier items (a), (f), (i), (j), (l) and (m). The backlog's status table says
 where every item went.
 
 **Read before any step:** `CLAUDE.md` (the product rules are still the spec),
-`ARCHITECTURE.md` (in particular D-52, D-58, D-64, D-65 and D-68, which this phase
-amends), and the backlog items the step names.
+`ARCHITECTURE.md` (in particular D-71 to D-78, the phase's decisions from P2-2,
+and D-52, D-58, D-64, D-65 and D-68, which they amend), and the backlog items
+the step names.
 
 **Decisions already taken, do not relitigate them mid-step:**
 
@@ -29,6 +30,10 @@ amends), and the backlog items the step names.
 - **Nothing changes on the machine without a button that says what it will
   do.** That now includes setting where models are stored, moving them, and
   copying a file into Ollama.
+- **P2-2's answers are ARCHITECTURE.md D-71 to D-78.** D-71 lists the facts
+  about Ollama v0.34.2 they rest on, read from its source. A step that finds
+  one of those facts wrong on a real machine stops and reports it, rather
+  than working around it.
 
 ## How to run this phase
 
@@ -42,7 +47,7 @@ in `claude/` (`claude/p2-3-disk-space.md`).
 | P2-1 | Copy fixes: the explainer that breaks sentences, the "images" purpose, a copy button | a, o, p | **Sonnet** | — |
 | P2-2 | Phase 2 decisions: models folder, chat, free text to Hugging Face, local files, backend methods checked against LM Studio / llama.cpp | n, q, r | **Fable** | Every later step builds on these |
 | P2-3 | Free-space check before every download | n | **Sonnet** | — |
-| P2-4 | From "this one" to a running model and an open chat | g, r | **Sonnet** (or **Opus**, see step) | The product's missing last mile |
+| P2-4 | From "this one" to a running model and a chat | g, r | **Opus** (D-74: a chat page inside the advisor) | The product's missing last mile |
 | P2-5 | Models and Benchmarks screens: speed verdict everywhere, sizes, chat from the Models screen | j, l | **Sonnet** | — |
 | P2-6 | Recommendation quality: the public-score bias and the 9–18 GB gap | f, m | **Opus** | Changes the picks on the golden profiles |
 | P2-7 | Choosing and moving the models drive (Windows first) | n | **Opus** | Changes the machine; must not lose a model |
@@ -72,7 +77,9 @@ decide whether the watch stays on by default. P2-7 also fills
 privacy promise (D-65) and the "does not chat" line (D-52) that the rest of
 the product has been built around. A wrong call there costs every later step,
 the same reason the skeleton and the estimator got Fable in the MVP. Opus
-where correctness is the risk: P2-6 changes what the engine recommends and
+where correctness is the risk: P2-4 adds the chat's path to a model beside
+the benchmark's sealed one (D-74) and loosens the archtest rule that only the
+benchmark talks to a model; P2-6 changes what the engine recommends and
 needs research behind it; P2-7 moves gigabytes of someone's models and edits
 their environment; P2-8 lets data from outside the curated list reach the
 estimator and the API, so the security and "unknown is unknown" rules are
@@ -230,18 +237,33 @@ step's prompt matches them.
 ## Step P2-3 — Free-space check before every download (Sonnet)
 
 ```
-Read CLAUDE.md, ARCHITECTURE.md D-71 onward (P2-2), internal/hardware/
-storage.go, internal/server/pull.go, internal/server/install.go,
-internal/estimate/config.go, and claude/backlog.md item (n).
+Read CLAUDE.md, ARCHITECTURE.md D-71, D-72 and D-78 (the models folder is
+the one Ollama reports; Backend.ModelsFolder), internal/hardware/storage.go,
+internal/server/pull.go, internal/server/install.go, internal/backend (the
+interface and the Ollama adapter), internal/estimate/config.go, and
+claude/backlog.md item (n).
 
-1. Before a pull starts, compare its download size (the catalogue's file
-   size; for an uncurated model, the size P2-8 resolves) with the free space
-   on the models folder's volume, read fresh, not from the cached profile.
-   - Not enough room: refuse with a sentence that gives both numbers and what
-     to do ("This needs 9.1 GB and the drive Ollama saves models to has
+1. The models folder is the one Ollama reports (D-72). Add
+   Backend.ModelsFolder (D-78), for reading only. The Ollama adapter reads
+   the FROM line /api/show gives for any installed local model; failing
+   that, the "server config" line of the running server's log (the log the
+   advisor captured, or Ollama's own server.log where the app runs the
+   server); failing that, it reports Known=false with the OS default from
+   the hardware profile, as where Ollama will put models. Fixtures in
+   Ollama v0.34.2's formats (D-71, fact 9). Report Control as well:
+   runtime_app when Ollama's app is installed, advisor for an ollama serve
+   the advisor starts where there is no app, administrator for a systemd
+   install. Nothing in this step sets the folder. Settings' "your models"
+   path and the free-space reading use this answer, not OLLAMA_MODELS.
+
+2. Before a pull starts, compare its download size (the catalogue's file
+   size; for an uncurated model, the size P2-8 resolves) with the free
+   space on that folder's volume, read fresh, not from the cached profile.
+   - Not enough room: refuse with a sentence that gives both numbers and
+     what to do ("This needs 9.1 GB and the drive Ollama saves models to has
      6.4 GB free. Remove a model you no longer use, or free up space").
-     Link to the Models screen's Remove button. On Windows, once P2-7
-     exists, also link to "Use another drive".
+     Link to the Models screen's Remove button, and, once P2-7 exists, to
+     "Keep models on another drive".
    - Room, but little left after: warn before the click, on the button's
      own screen: "After this download, about 7 GB will be left on C:." The
      threshold is a new constant in a config struct, marked CHOSEN, with
@@ -252,70 +274,107 @@ internal/estimate/config.go, and claude/backlog.md item (n).
    unknown, say so and let the person continue. Never block on a value the
    advisor could not read.
 
-2. The same check for the Ollama installer's download into the temp folder
-   (install.go), using InstallSizer's size.
+3. The same check for the Ollama installer's download into the temp folder
+   (install.go), using InstallSizer's size. Write the check as one function
+   that P2-10's copy of a local file into Ollama calls too.
 
-3. Every download button shows the check's result before it is clicked:
+4. Every download button shows the check's result before it is clicked:
    Recommend cards, onboarding's "Download X GB", Benchmarks, the watch
    notifications' links. One shared UI component, strings in en.ts.
 
 Tests: fixtures for enough / just enough / not enough / unknown on each OS
-path; the pull handler refuses before it calls the backend.
+path; the pull handler refuses before it calls the backend; ModelsFolder
+from a Show fixture, from a log fixture, and with neither.
 ```
 
 **Done when** a download that would fill the disk is refused before it
-starts, with both numbers in the message, and one that leaves less than the
-threshold says how much will be left.
+starts, with both numbers in the message, one that leaves less than the
+threshold says how much will be left, and the folder checked is the one
+Ollama itself reports.
 
 ---
 
-## Step P2-4 — From "this one" to a running model and an open chat (Sonnet, or Opus)
+## Step P2-4 — From "this one" to a running model and a chat (Opus)
 
-**Model.** Sonnet if D-71 chose hand-off only. Opus if it chose a built-in
-chat page, because that step adds a second path to a model next to the
-benchmark's sealed one and changes the archtest rule that holds D-8/D-65.
+**Model.** Opus. D-74 chose a chat page inside the advisor, which adds a
+second path to a model beside the benchmark's sealed one and changes the
+archtest rules that hold D-8 and D-65.
 
 ```
-Read CLAUDE.md, ARCHITECTURE.md D-52, D-65 and D-71 onward (the chat
-decision), internal/backend (the interface and the Ollama adapter),
-internal/chatapps, internal/server/{backend,pull,chatapps,onboarding}.go,
-ui/src/onboarding/UseIt.tsx, ui/src/screens/{Models,Recommend,Home}.tsx,
-and claude/backlog.md items (g) and (r).
+Read CLAUDE.md, ARCHITECTURE.md D-8, D-52, D-65, D-67, and D-71 to D-74 and
+D-78 (the facts, Start, cloud models, the chat, the new Backend methods),
+internal/backend (the interface and the Ollama adapter), internal/suite,
+internal/archtest, internal/chatapps, internal/server/{backend,pull,
+chatapps,onboarding,bench,benchmodels}.go, ui/src/onboarding/UseIt.tsx,
+ui/src/screens/{Models,Recommend,Home}.tsx, and claude/backlog.md items
+(g) and (r).
 
 The goal, in the person's words: "I pick a model and I end up talking to
 it." One flow, reachable from every place a model is shown (a Recommend
 card, the Models screen, the end of onboarding, and later a Hugging Face
-result), and one button at each stage that says what it will do:
+result and a local file), with one button at each stage that says what it
+will do:
 
   Not installed    → "Download 5.2 GB" (with P2-3's check)
   Ollama stopped   → "Start Ollama"
   Ready            → "Start chatting with <name>"
 
-"Start chatting" does what D-71 decided, for example: load the model
-(a Backend method that loads with no text, keep_alive long enough for a
-conversation), then open the chat, with the model already chosen where
-that is possible. Where it is not possible, show the exact name to pick,
-with the copy button (backlog a), next to the opened app. Show what is
-happening at each stage ("Loading Qwen3.5 9B into memory — usually about
-20 seconds"), and say in words when the load fails and what to try.
+1. Cloud models first (D-73), because this closes a gap the benchmark has
+   today. Add Installed.Remote and RemoteKnown, and ModelInfo.RemoteHost,
+   from remote_host. The adapter sends model names with Ollama's ":local"
+   suffix in Generate, Chat and Load, and refuses a remote model before it
+   sends anything. POST /api/bench refuses one (422 remote_model), and
+   GET /api/bench/models leaves it out. The Models screen labels it "Runs
+   on Ollama's computers, not this one", with no test or chat button.
 
-Home's "one most useful thing" card becomes "Continue chatting with <name>"
-once a model has been used this way. Record the last model started in the
-settings table, not in history (it is a setting, not evidence).
+2. Start (D-72). Where Ollama's app is installed, "Start Ollama" opens the
+   app hidden (open -j -a Ollama on macOS; "ollama app.exe" hidden on
+   Windows) instead of running ollama serve. Run ollama serve only where
+   there is no app. Detect and the runtime-path log follow (Ollama's own
+   server.log). Check D-71's facts 1, 2, 4 and 5 on a real Mac and a real
+   Windows PC and write down what you saw in the step doc. If one of them
+   is wrong, stop and report it.
 
-If D-71 chose a built-in chat page: one screen, the model's name at the top,
-streaming replies, a stop button, nothing stored unless D-71 said otherwise.
-The text goes through the new sealed path D-71 defined, to egress.Local
-only, with the archtest rule that holds it. It never offers a model to
-switch to on its own (product rule 5, PRD §12).
+3. Backend.Capabilities, Load and Chat (D-78), and internal/conversation
+   (D-74), exactly as specified. Turn is sealed: no exported field;
+   String, GoString, Format and LogValue return a placeholder; MarshalJSON
+   fails. It is made only by conversation.Decode, with its limits.
+   ChatRequest is {Model, Turns, NumCtx, KeepAlive} and nothing else;
+   LoadRequest is {Model, NumCtx, KeepAlive}. In the Ollama adapter, Load
+   is /api/generate with no prompt, and Chat is /api/chat streamed, both
+   through egress.Local. ChatKeepAlive (30 minutes) goes in a config
+   struct, marked CHOSEN.
+
+4. The server: POST /api/chat/load (no text) and POST /api/chat
+   (internal/server/chat.go, which streams the reply; closing the request
+   stops it). chat.go touches neither the store nor the logger. The last
+   model chatted with is a setting in the settings table, for Home's
+   "Continue chatting with <name>" card.
+
+5. The page, a screen in ui/src/screens/index.ts: the model's name at the
+   top, streamed replies shown as text, thinking folded under the reply, a
+   Stop button, and the conversation in component state only (not
+   localStorage), gone when the page closes. Nothing from D-74's "will not
+   grow into" list. Where chatapps finds Ollama's app, add "Continue in
+   Ollama's app": a click that opens ollama:// through the daemon, with
+   the exact name, the copy button and D-74's sentence. UseIt.tsx and the
+   list of other apps follow D-74: no copy that suggests LM Studio can use
+   an Ollama model. While a model loads, say what is happening, and show
+   the last measured load time when a test has one.
+
+6. The archtest rules D-74 lists (1 to 4), D-73's shape test, and D-78's
+   rules for LoadRequest and for runtime-name literals. The existing rules
+   for Generate stay unchanged. Place internal/conversation in the layer
+   table.
 
 Test on all three operating systems, including Linux, where Ollama has no
 desktop app.
 ```
 
-**Done when** a person who has never used the app goes from a recommendation
-to a reply from that model without a terminal and without typing the model's
-name, on macOS, Windows and Linux.
+**Done when** a person who has never used the app goes from a
+recommendation to a reply from that model without a terminal and without
+typing the model's name, on macOS, Windows and Linux; a cloud model can be
+neither tested nor chatted with; and archtest holds every rule D-74 lists.
 
 ---
 
@@ -339,8 +398,9 @@ Benchmarks}.tsx, and ui/src/components/SpeedVerdict.tsx.
    installed catalogue file on /api/models/installed, or a sibling endpoint.
    Add the smallest one, list its type in server.APITypes(), and mirror it
    in ui/src/api/types.ts. A model the catalogue does not know says so in
-   words (P2-9 and P2-10 will add models from outside the list). Each row
-   gets P2-4's "Start chatting" button and P2-1's copy button.
+   words (P2-9 and P2-10 will add models from outside the list, D-77). Each
+   row gets P2-4's "Start chatting" button and P2-1's copy button. A remote
+   (cloud) model keeps D-73's label and gets neither button.
 
 2. One prompt rate per prompt size (j): WithMeasurement stores one prompt
    rate per configuration, so a tested model's coding verdict on Recommend
@@ -417,90 +477,125 @@ competes on the same footing as an unscored one, the mid-size band has a
 
 ## Step P2-7 — Choosing and moving the models drive (Opus)
 
-**Why Opus.** This is the first step that edits a person's environment and
-moves their files. Losing a model someone downloaded over hours, or leaving
-Ollama pointed at an empty folder, is the failure to design against.
+**Why Opus.** This is the first step that moves a person's files and asks
+them to change a setting in another app. Losing a model someone downloaded
+over hours, or leaving Ollama pointed at an empty folder, is the failure to
+design against.
 
 ```
-Read CLAUDE.md, ARCHITECTURE.md D-71 onward (the models-folder decision),
-D-66, D-68, internal/hardware (storage.go, winprobe.go, sys_windows.go,
-macprobe.go, linuxprobe.go), internal/backend/ollama (install_windows.go,
-env.go, the Start/Detect code), internal/autostart (how it already writes
-HKCU on Windows), internal/server/deletedata.go, and backlog (n).
+Read CLAUDE.md, ARCHITECTURE.md D-66, D-68, D-71, D-72 and D-78 (the models
+folder is Ollama's own setting; the move), internal/hardware (storage.go,
+winprobe.go, sys_windows.go, macprobe.go, linuxprobe.go),
+internal/backend/ollama (install_*.go, env.go, the Start/Detect code, and
+ModelsFolder from P2-3), internal/server/deletedata.go, and backlog (n).
 
 1. Every drive, not only the models folder's. Windows: the fixed local drives
    (GetLogicalDrives + GetDriveType + GetDiskFreeSpaceEx; skip removable,
    network and optical drives; say why each skipped drive was skipped),
    with label, total and free. macOS and Linux: mounted local volumes where
-   the person can write, external drives included and labelled as such.
-   Through the hardware env seam, with txtar fixtures in each tool's real
-   format, including a machine with C: nearly full and a large D:.
+   the person can write. External drives are listed and labelled, but never
+   recommended: Ollama's app goes back to its default folder when the
+   chosen one is missing (D-71, fact 1). Through the hardware env seam,
+   with txtar fixtures in each tool's real format, including a machine
+   with C: nearly full and a large D:.
 
 2. Before the first download (onboarding's Ollama screen and its
    Recommendations screen, and Settings): a short, plain warning that models
    are large, a few GB to tens of GB each. When another drive has much more
-   room than the models folder's (the rule is a CHOSEN constant), recommend
-   it: "Keep models on D: (412 GB free) instead of C: (38 GB free)", with a
-   button that says what it will do. The button sets the models folder as
-   D-71 decided, restarts Ollama if it is running, and confirms by asking
-   Ollama (not by reading the variable back) where it now stores models.
+   room than the one Ollama reports (the rule is a CHOSEN constant),
+   recommend it: "Keep models on D: (412 GB free) instead of C: (38 GB
+   free)". What the button does depends on ModelsFolder.Control (D-72,
+   D-78):
+   - runtime_app (Ollama's app, on macOS and Windows): "Create the folder
+     D:\Ollama models", then the steps in Ollama's own Settings (Model
+     location, then Browse, then that folder), with the path and a copy
+     button. The strings go in en.ts, checked against Ollama v0.34.2's
+     Settings screen. Never write OLLAMA_MODELS, the app's database or its
+     UI server.
+   - advisor (the Linux user-space install, or a Mac with only the CLI):
+     add Backend.SetModelsFolder (D-78). It writes ollama/models-location
+     and restarts the Ollama the advisor runs, passing OLLAMA_MODELS to that
+     process only.
+   - administrator (a systemd install): say where the models are and that
+     moving them needs an administrator.
+   Either way, confirm by what Ollama reports (ModelsFolder), not by what
+   was set. When Ollama reports a different folder than the one the person
+   chose, say so in words.
 
 3. Moving models that already exist (Settings → "Move my models to D:"),
-   exactly as D-71 decided: check the space first; stop Ollama; copy blobs
-   and manifests; verify every blob's sha256 against its name; switch the
-   folder; start Ollama; check the same models list comes back. Only then
-   offer "Delete the old copy (frees 23 GB)" as its own click. A failure at
-   any point leaves the old folder in use and says what happened. Show
-   progress in bytes, and let the person cancel, which rolls back.
+   following D-72's seven steps exactly: the refusals; copy the blobs
+   (never -partial files) and check each one's SHA-256 against its name;
+   manifests last; switch as in 2; confirm that the same names and digests
+   come back; then "Delete the old copy (frees 23 GB)" as its own click,
+   which deletes only the files that were copied, by name. Show progress in
+   bytes. Cancel removes only what was copied into the new folder. No
+   symbolic links or junctions.
 
-4. "Delete everything" and SECURITY.md follow D-71's decision about the
-   variable.
+4. "Delete everything" and SECURITY.md follow D-72. ollama/models-location
+   is kept, and the answer says so. The button is refused (409) while a move
+   is running. An old copy not yet deleted is listed with its path and size.
+   SECURITY.md's list of what the app writes outside its data folder gains
+   the moved copy of the models, the old copy until it is deleted, and the
+   Linux models-location file.
 
 5. While in the install code: write `backends.installed_version` from the
    release tag the verified install already knows (`download` returns it;
    step 12 found it is never written).
 
-Windows is the gate. macOS and Linux get the drive list and the
-recommendation if D-71 found a supported way to set the folder there, and
-otherwise a sentence saying how.
+Windows is the gate. macOS gets the same guided flow as Windows (Ollama's
+app). Linux gets the advisor's own button for its user-space install.
 ```
 
-**Done when**, on a Windows machine with two drives, a person picks the other
-drive before their first download, the model lands there, and a second machine
-with models already on C: moves them to D: and still lists and runs every one.
+**Done when**, on a Windows machine with two drives, a person picks the
+other drive before their first download (following the advisor's steps in
+Ollama's Settings), the model lands there, and a second machine with models
+already on C: moves them to D: and still lists and runs every one, with the
+old copy deleted only on its own click.
 
 ---
 
 ## Step P2-8 — Hugging Face search and links: estimate any model first (Opus)
 
 **Why Opus.** This is the first time a model the curators did not review
-reaches the estimator, the API and the screen. Headers can be odd or hostile,
+reaches the estimator, the API and the screen, and the first egress purpose
+whose requests carry what the person typed. Headers can be odd or hostile,
 architectures can be unknown, and the "unknown is unknown" rule must hold.
 
 ```
-Read CLAUDE.md, ARCHITECTURE.md D-34, D-53, D-64, D-65 and D-71 onward
-(free text to Hugging Face; what an uncurated model gets),
+Read CLAUDE.md, ARCHITECTURE.md D-33, D-34, D-53, D-64, D-65, D-71, D-75,
+D-77 and D-78 (free text to Hugging Face; what an uncurated model gets),
 internal/catalog/hf, internal/catalog/gguf, internal/catalog/refresh,
-internal/estimate, internal/egress/hosts.go, internal/archtest, and backlog (q).
+internal/estimate, internal/egress/hosts.go, internal/archtest, and
+backlog (q).
 
-1. Search, as D-71 allowed: a new egress purpose for the Hub's model search
-   only, GGUF repos only, sorted by downloads, a small page of results. Sent
-   only on the Search button. The screen says in words that the search words
-   go to Hugging Face. A pasted link or "owner/repo" is parsed on the server,
-   the host checked against Hugging Face's own names, and anything else
-   refused with a sentence.
+1. Search, exactly as D-75 allows. Add the egress purpose ModelSearch on
+   huggingface.co, and on hf.co with its subdomains, with its lines and
+   reasons in hosts.go. The request is GET /api/models?search=<words>&
+   filter=gguf&gated=false&sort=downloads&limit=N: one page, and never
+   follow Link. The words are at most 100 characters and are sent only on
+   the "Search Hugging Face" button. The screen says, above the box, that
+   the search words go to Hugging Face. A pasted link or "owner/repo" is
+   parsed on the server, with the host checked against Hugging Face's own
+   names and owner and repo checked against a strict repository-id
+   grammar; anything else is refused with a sentence. Results and opened
+   repositories are held in memory with a size limit, never in SQLite.
 
 2. For a result: list the repo's GGUF files grouped by size and quant (the
    catalogue's grouping code), pick the default the way the catalogue does,
    read the header by range request (never the whole file), and run
-   estimate.Fit and the speed range for this machine. Show the answer the
-   way a recommendation shows it (fits / tight / does not fit, the reasons,
-   the download size, the estimate treatment) and say plainly that this
-   model is not on the advisor's list: no purpose fit, no public scores
-   unless D-71 said otherwise, lower confidence. An architecture the parser
-   or the estimator does not know gets "can't estimate this one" and why,
-   never a guessed number. Show the licence and whether the file includes an
-   image reader.
+   estimate.Fit and the speed range for this machine. For each file whose
+   header was read, issue the in-memory `resolved` id D-75 defines (P2-9
+   downloads by it). Show the answer the way a recommendation shows it
+   (fits / tight / does not fit, the reasons, the download size, the
+   estimate treatment), under D-77's rules: the sentence that the model
+   isn't on the advisor's list, confidence at most medium, no purpose fit,
+   no public scores. An architecture the parser or the estimator does not
+   know gets "can't estimate this one" and why, never a guessed number. A
+   mixture-of-experts file that does not state its active parameters gets
+   the memory fit and no speed range. Show the licence, whether the file
+   includes an image reader, and whether the repository carries its own
+   system prompt (a `system` file, D-71 fact 7). Models split across
+   several files get a sentence (D-71, fact 8).
 
 3. "What to look for" (backlog q): a collapsible guide on the search screen,
    strings in en.ts, glossary terms through <Term>. It covers: GGUF files (the
@@ -512,13 +607,23 @@ internal/estimate, internal/egress/hosts.go, internal/archtest, and backlog (q).
    image reader), so the guide explains the badges rather than asking the
    person to check by hand.
 
-4. Where it lives: the screen and toggle D-71 chose. Register it in
-   ui/src/screens/index.ts.
+4. Where it lives: its own screen, "Find a model", reached from the Models
+   screen and the navigation. It is not behind the Advanced toggle, and it
+   never appears on Recommend or in onboarding (D-75). Register it in
+   ui/src/screens/index.ts. The results' technical columns are behind
+   Advanced, as everywhere else.
+
+5. SECURITY.md: a row in "What leaves your computer" for the search (your
+   words and the repositories you open, to Hugging Face, only when you
+   click), and a matching change to "What never leaves your computer",
+   which today says that nothing you type leaves.
 
 Security tests: a header that lies about its size, a redirect off Hugging
 Face, a link to another host, a repo with no GGUF, a whole-file answer to a
-range request, a search that returns a thousand results. The archtest rules
-still pass with the new egress purpose, and nothing else builds a client.
+range request, a search that returns a thousand results, the repository-id
+grammar cases D-75 lists, and a search that writes nothing to the store.
+The archtest rules still pass with the new egress purpose, ModelSearch is
+referenced only where D-75 says, and nothing else builds a client.
 ```
 
 **Done when** a person can search for a model, open a result, and see whether
@@ -530,57 +635,87 @@ treatment, before any download, and a pasted link does the same.
 ## Step P2-9 — Download and test any Hugging Face model (Sonnet)
 
 ```
-Read CLAUDE.md, ARCHITECTURE.md D-71 onward (how pull accepts an uncurated
-model), P2-8's code, internal/server/pull.go, internal/bench, and P2-4's flow.
+Read CLAUDE.md, ARCHITECTURE.md D-71, D-73, D-75, D-77 and D-78 (how a pull
+accepts an uncurated model; the Hugging Face fields of ModelSource), P2-8's
+code, internal/server/pull.go, internal/backend/ollama, internal/bench, and
+P2-4's flow.
 
 From a P2-8 result: "Download 5.2 GB and test it". POST /api/models/pull
-accepts an uncurated model exactly as D-71 specified, for example a
-reference to a repo and file the server resolved in P2-8, from which it
-builds the hf.co/{owner}/{repo}:{quant} tag itself, and never a tag string
-from the request. P2-3's space check applies. When the pull finishes, offer
-the two-minute test (the benchmark suite, unchanged) and show the
-measurement next to the estimate it replaces, as onboarding does. Then
-P2-4's "Start chatting" flow.
+accepts exactly one of `ollama_tag` (curated, as now) or `resolved` (the id
+P2-8 issued), as D-75 specifies, and never a tag, repository or file from
+the request. The server builds ModelSource{Kind: huggingface_gguf, HFRepo,
+HFFile, HFQuant, HFSHA256} from its own record (D-78). The Ollama adapter
+turns that into hf.co/{owner}/{repo}:{file}, falling back to the quant label
+only when the file name is not a valid Ollama tag and exactly one file in
+the repository has that label, and refusing with a sentence otherwise.
+After the pull, it compares the weights' SHA-256 from Show's FROM line
+(ModelInfo.WeightsSHA256, D-71 fact 9) with the recorded hash. A mismatch
+is said in words, with Remove offered. P2-3's space check applies.
 
-On the Models screen, such a model shows where it came from ("from Hugging
+When the pull finishes, offer the two-minute test (the benchmark suite,
+unchanged) and show the measurement next to the estimate it replaces, as
+onboarding does. Then P2-4's "Start chatting" flow.
+
+On the Models screen, such a model shows where it came from ("From Hugging
 Face, not on the advisor's list") and its measured or estimated speed like
-any other. The watch (step 10) does not track it. If Ollama cannot run the
-file (no chat template, an unsupported architecture), say so in words and
-offer Remove.
+any other (D-77). The watch (step 10) does not track it. If Ollama cannot
+run the file (no chat template, an unsupported architecture), say so in
+words and offer Remove.
+
+SECURITY.md: a row for a download of a Hugging Face model, made by Ollama:
+what goes to Hugging Face is the address of the one file you were shown.
 ```
 
 **Done when** a model found by search is downloaded, tested and opened in chat
-from inside the app, and it appears on the Models screen labelled as coming
-from Hugging Face.
+from inside the app, it appears on the Models screen labelled as coming
+from Hugging Face, and the file Ollama downloaded is checked to be the one
+the estimate was made for.
 
 ---
 
 ## Step P2-10 — A model file already on this computer, including LM Studio's models (Sonnet)
 
 ```
-Read CLAUDE.md, ARCHITECTURE.md D-68 and D-71 onward (local files),
-internal/catalog/gguf, internal/estimate, internal/backend/ollama, and
-P2-8's result screen.
+Read CLAUDE.md, ARCHITECTURE.md D-68, D-71, D-76, D-77 and D-78 (local
+files; Backend.Import), internal/catalog/gguf, internal/estimate,
+internal/backend/ollama, P2-3's space check, and P2-8's result screen.
 
-As D-71 decided (a path the person pastes, a scan of known folders on a
-button click, or both): find the .gguf file, read its header locally, and
-show the same estimate screen as P2-8, with no network request. "Add to
-Ollama (copies 5.2 GB)" pushes the file with /api/blobs and creates the
-model with /api/create, with P2-3's space check (the copy doubles disk use
-until the original is deleted; say so). The model name is built by the
-advisor from the file name, cleaned, never taken raw. A split or partial
-file, a file that is not GGUF, an image reader (mmproj) next to the
-weights: each gets a sentence. Then the test and P2-4's chat.
+Both ways D-76 decided:
+- "Look for model files on this computer" (not behind Advanced), on the
+  button only: .gguf files in LM Studio's models folder, found the way
+  LM Studio's own CLI finds it (downloadsFolder in <LM Studio home>/
+  settings.json, else ~/.lmstudio/models), in the Hugging Face cache, and
+  in Downloads. The walk has a depth limit, considers only .gguf names, and
+  follows a symbolic link only when it resolves inside the same root.
+- A pasted absolute path to a .gguf file, behind Advanced.
 
-Nothing is read outside the data folder except the file the person chose,
-or the folders D-71 lists for the scan. Tests use t.TempDir() files built
-from the existing GGUF header fixtures.
+Read each file's header locally, metadata and tensor table within D-33's
+limits (the tensor table gives the parameter count), and show the same
+estimate screen as P2-8, under D-77's rules, with no network request. The
+server keeps what it found in memory under ids. "Add to Ollama (copies 5.2
+GB)" sends POST /api/models/import {"found": id}, which calls
+Backend.Import (D-78). The Ollama adapter hashes the file, skips the upload
+when HEAD /api/blobs says Ollama already has it, otherwise streams it to
+POST /api/blobs/sha256:<digest>, then calls /api/create with only `model`
+and `files` (never system, template, parameters or remote host, D-71 fact
+8). The adapter builds the model name from the file name, cleaned to
+Ollama's name rules, never from the request. P2-3's space check applies.
+Say that the copy doubles the disk space used until the original is
+deleted, that the advisor never deletes the original, and, for a file in
+LM Studio's folder, that it stays LM Studio's. An image reader (mmproj)
+next to the weights is offered with them. A split or partial file, or a
+file that is not GGUF, gets a sentence each. Then the test and P2-4's chat.
+
+Nothing is read outside the data folder except the scan's roots (names,
+and the headers of .gguf files) and, after the click, the file the person
+chose. SECURITY.md lists these in "What the app looks at on your computer".
+Tests use t.TempDir() files built from the existing GGUF header fixtures,
+and cover D-76's held-by list.
 ```
 
 **Done when** a GGUF downloaded earlier with a browser or LM Studio is
 estimated, added to Ollama, tested and opened in chat, without a terminal. A
-person with LM Studio installed sees its downloaded models offered, if D-71
-allowed the scan.
+person with LM Studio installed sees its downloaded models offered.
 
 ---
 
