@@ -79,7 +79,10 @@ export function RoomNote({
       data-verdict={check.verdict}
       role={check.verdict === 'not_enough' ? 'alert' : undefined}
     >
-      <p>{check.message}</p>
+      <p>
+        {check.verdict === 'not_enough' ? <strong>{c.notEnoughTitle}. </strong> : null}
+        {check.message}
+      </p>
       {check.actions.length > 0 ? (
         <p>
           {check.actions.map((a, i) =>

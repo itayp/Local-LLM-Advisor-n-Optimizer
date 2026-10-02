@@ -54,6 +54,7 @@ export const en = {
   // the note say the same thing; only labels live here.
   room: {
     checking: 'Checking the space on your drive…',
+    notEnoughTitle: 'Not enough space',
     unavailable: 'The advisor could not check the space on your drive, so it cannot say whether this fits. You can still go ahead.',
     actions: {
       remove_models: 'Remove a model you no longer use',

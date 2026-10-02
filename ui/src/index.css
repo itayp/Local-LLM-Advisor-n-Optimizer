@@ -431,9 +431,13 @@ body {
   margin-bottom: 0;
 }
 
+/* A button that cannot be pressed must look it: grey, not the accent
+   colour at 60% (which read as "normal" beside the not-enough-space note). */
 .button:disabled {
-  opacity: 0.6;
-  cursor: default;
+  background: var(--line);
+  border-color: var(--line);
+  color: var(--muted);
+  cursor: not-allowed;
 }
 
 .button--secondary {

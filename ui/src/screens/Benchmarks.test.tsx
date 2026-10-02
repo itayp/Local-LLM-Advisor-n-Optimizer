@@ -127,6 +127,7 @@ function serve(
     models?: () => BenchModelsResponse
     pull?: () => PullStatus
     status?: () => object
+    room?: () => object
   } = {},
 ) {
   const calls: { url: string; method: string; body?: string }[] = []
@@ -142,6 +143,7 @@ function serve(
       if (url === '/api/catalog/status')
         return json(opts.status ? opts.status() : { fetched: true, running: false, public_fetched: true, public_updated: '' })
       if (url.startsWith('/api/bench/plan')) return json(opts.plan ? opts.plan(url) : plan())
+      if (url.startsWith('/api/models/pull/check') && opts.room) return json(opts.room())
       if (url === '/api/bench/history') return json({ runs: opts.history ?? [] })
       if (url === '/api/bench' && method === 'POST') return opts.start ? opts.start() : json(run({ status: 'running', phase: 'preparing', results: [] }), 202)
       if (url === '/api/bench/7/cancel') return json(run({ status: 'cancelled', results: [], generation_tps: undefined, replaced: false }))
@@ -393,6 +395,22 @@ describe('Benchmarks', () => {
     expect(within(box).getByRole('button', { name: c.downloadAndRun('6.4 GB') })).toBeInTheDocument()
     expect(calls.some((x) => x.url.startsWith('/api/bench/plan?model=gemma4'))).toBe(false)
     expect(calls.some((x) => x.method === 'POST')).toBe(false)
+  })
+
+  it('greys out Download, with a "Not enough space" alert beside it, when the drive cannot hold the model', async () => {
+    const message = 'This needs about 6.4 GB and the drive Ollama saves models to (C:) has 2.0 GB free. Remove a model you no longer use, or free up space.'
+    const calls = serve({
+      room: () => ({ verdict: 'not_enough', message, free_bytes: 2e9, free_known: true, where: 'models', actions: ['remove_models'] }),
+    })
+    open(false, '/benchmarks?model=gemma4%3Ae4b')
+    const box = await screen.findByTestId('bench-download')
+    const alert = await within(box).findByRole('alert')
+    expect(alert).toHaveTextContent(en.room.notEnoughTitle)
+    expect(alert).toHaveTextContent(message)
+    const button = within(box).getByRole('button', { name: c.downloadAndRun('6.4 GB') })
+    await waitFor(() => expect(button).toBeDisabled())
+    await userEvent.click(button)
+    expect(calls.some((x) => x.url === '/api/models/pull' && x.method === 'POST')).toBe(false)
   })
 
   it('downloads a model that is not installed, shows the download, then runs the test by itself', async () => {
