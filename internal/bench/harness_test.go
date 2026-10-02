@@ -95,6 +95,9 @@ func (f *fakeBackend) Unload(_ context.Context, name string) error {
 func (f *fakeBackend) Delete(context.Context, string) error                         { return nil }
 func (f *fakeBackend) Install(context.Context, func(backend.InstallProgress)) error { return nil }
 func (f *fakeBackend) Start(context.Context) error                                  { return nil }
+func (f *fakeBackend) ModelsFolder(context.Context) (backend.ModelsFolder, error) {
+	return backend.ModelsFolder{Control: backend.FolderUnknown}, nil
+}
 func (f *fakeBackend) ObserveLoad() func(context.Context) backend.LoadReport {
 	return func(context.Context) backend.LoadReport { return f.loadReport }
 }

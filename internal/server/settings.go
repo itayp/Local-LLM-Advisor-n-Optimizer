@@ -225,9 +225,10 @@ func (s *Server) handleOpenDataDir(w http.ResponseWriter, r *http.Request) {
 	s.openFolderOrError(w, filepath.Dir(s.store.Path()))
 }
 
-// handleOpenModelsDir opens the folder this start's hardware detection
-// found the runtime keeping its models in (hardware.Storage.ModelsDir) —
-// it waits for detection exactly as GET /api/hardware does.
+// handleOpenModelsDir opens the folder the runtime reports keeping its
+// models in (D-72); until it has said, the hardware profile's reading of
+// where it will put them — which waits for detection exactly as GET
+// /api/hardware does.
 func (s *Server) handleOpenModelsDir(w http.ResponseWriter, r *http.Request) {
 	select {
 	case <-s.hw.ready:
@@ -237,11 +238,16 @@ func (s *Server) handleOpenModelsDir(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "detecting", "still reading this computer; try again in a moment")
 		return
 	}
-	if s.hw.err != nil {
+	dir := ""
+	if all := s.backendList(); len(all) > 0 {
+		dir = s.folderFor(r.Context(), all[0]).Path
+	} else if s.hw.err == nil {
+		dir = s.hw.resp.Profile.Storage.ModelsDir
+	}
+	if dir == "" && s.hw.err != nil {
 		writeError(w, http.StatusServiceUnavailable, "detection_failed", "the models folder is not known yet")
 		return
 	}
-	dir := s.hw.resp.Profile.Storage.ModelsDir
 	if dir == "" || dir == hardware.Unknown {
 		// D-21: unknown is unknown, never a guess at where to open.
 		writeError(w, http.StatusServiceUnavailable, "unknown", "the models folder could not be found on this computer")

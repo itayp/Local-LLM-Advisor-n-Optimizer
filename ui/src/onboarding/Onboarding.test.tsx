@@ -1,5 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type {
   BackendInfo,
@@ -14,6 +15,7 @@ import type {
   RecommendResult,
 } from '../api/types'
 import { en } from '../copy/en'
+import { SettingsProvider } from '../state/settings'
 import { Getting } from './Getting'
 import { Onboarding } from './Onboarding'
 import { OnboardingGate } from './OnboardingGate'
@@ -362,7 +364,11 @@ describe('OllamaStep', () => {
         return json({ error: { code: 'not_found', message: url } }, 404)
       }),
     )
-    render(<OllamaStep onNext={() => undefined} />)
+    render(
+      <SettingsProvider>
+        <OllamaStep onNext={() => undefined} />
+      </SettingsProvider>,
+    )
     const button = await screen.findByRole('button', { name: /Install Ollama \(about 45 MB\)/ })
     await user.click(button)
     await waitFor(() => expect(calls.some((c) => c.url === '/api/backends/ollama/install' && c.method === 'POST')).toBe(true))
@@ -381,7 +387,11 @@ describe('OllamaStep', () => {
         return json({ error: { code: 'not_found', message: url } }, 404)
       }),
     )
-    render(<OllamaStep onNext={() => undefined} />)
+    render(
+      <SettingsProvider>
+        <OllamaStep onNext={() => undefined} />
+      </SettingsProvider>,
+    )
     const button = await screen.findByRole('button', { name: en.onboarding.ollama.start })
     await user.click(button)
     await waitFor(() => expect(calls.some((c) => c.url === '/api/backends/ollama/start' && c.method === 'POST')).toBe(true))
@@ -476,6 +486,55 @@ describe('Recommendations', () => {
     expect(await screen.findByRole('heading', { name: 'Qwen3.5 9B' }, { timeout: 3000 })).toBeInTheDocument()
     expect(calls.some((c) => c.url === '/api/catalog/refresh' && c.method === 'POST')).toBe(true)
     expect(screen.queryByTestId('model-list-missing')).not.toBeInTheDocument()
+  })
+
+  it('shows the free-space check on a card and switches Download off when there is not enough room (the daemon would refuse it anyway)', async () => {
+    const roomMessage = 'This needs about 9.1 GB and the drive Ollama saves models to (C:) has 6.4 GB free. Remove a model you no longer use, or free up space.'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (url.startsWith('/api/recommend')) return json(recommendResult({ recommendations: [recommendation({ installed: false })] }))
+        if (url.startsWith('/api/models/pull/check'))
+          return json({
+            verdict: 'not_enough',
+            message: roomMessage,
+            free_bytes: 6.4e9,
+            free_known: true,
+            where: 'models',
+            actions: ['remove_models'],
+          })
+        return json({}, 404)
+      }),
+    )
+    const onDownload = vi.fn()
+    render(
+      <SettingsProvider>
+        <MemoryRouter>
+          <Recommendations purposes={['chat']} onDownload={onDownload} />
+        </MemoryRouter>
+      </SettingsProvider>,
+    )
+    expect(await screen.findByRole('alert')).toHaveTextContent(roomMessage)
+    const button = screen.getByRole('button', { name: /download/i })
+    await waitFor(() => expect(button).toBeDisabled())
+    await userEvent.setup().click(button)
+    expect(onDownload).not.toHaveBeenCalled()
+  })
+
+  it('leaves Download on when the space could not be checked (never block on a value the advisor could not read)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) =>
+        url.startsWith('/api/recommend') ? json(recommendResult({ recommendations: [recommendation({ installed: false })] })) : json({}, 404),
+      ),
+    )
+    render(
+      <SettingsProvider>
+        <Recommendations purposes={['chat']} onDownload={() => undefined} />
+      </SettingsProvider>,
+    )
+    expect(await screen.findByText(en.room.unavailable)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /download/i })).toBeEnabled()
   })
 
   it(
@@ -583,6 +642,19 @@ describe('Getting', () => {
     await waitFor(() => expect(calls.some((c) => c.url === '/api/models/pull/cancel')).toBe(true))
     expect(await screen.findByText(en.onboarding.getting.cancelled)).toBeInTheDocument()
     expect(onDone).not.toHaveBeenCalled()
+  })
+
+  it('says so, in the daemon’s words, when the download is refused for lack of room', async () => {
+    const message = 'This needs about 9.1 GB and the drive Ollama saves models to (C:) has 6.4 GB free. Remove a model you no longer use, or free up space.'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url === '/api/models/pull' && init?.method === 'POST') return json({ error: { code: 'not_enough_room', message } }, 507)
+        return json({ error: { code: 'not_found', message: url } }, 404)
+      }),
+    )
+    render(<Getting recommendation={recommendation({ installed: false })} onDone={() => undefined} />)
+    expect(await screen.findByText(en.onboarding.getting.failed(message))).toBeInTheDocument()
   })
 })
 

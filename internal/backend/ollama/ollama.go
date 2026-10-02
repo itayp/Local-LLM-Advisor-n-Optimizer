@@ -19,6 +19,8 @@
 //	                  Install/Start/binary-location in install_<os>.go
 //	runtimepath.go    step 3 item 5: what path a load actually took, from
 //	                  /api/ps and the server's own device-discovery log
+//	folder.go         ModelsFolder (D-72, D-78): where Ollama keeps models,
+//	                  read back from Ollama, and who can change it
 package ollama
 
 import (
@@ -64,6 +66,12 @@ type Backend struct {
 	// newDownloader, when set, replaces download.go's network side (tests
 	// point it at a fake release server).
 	newDownloader func() *downloader
+
+	// defaultFolder and journal are folder.go's two seams, set by tests:
+	// the OS default models folder (else the hardware package's reading),
+	// and the system journal's "server config" lines (else journalctl).
+	defaultFolder func(ctx context.Context) (dir, source string)
+	journal       func(ctx context.Context) string
 }
 
 // New builds the Ollama backend. It reads OLLAMA_HOST (and other

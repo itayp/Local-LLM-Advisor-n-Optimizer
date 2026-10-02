@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 
 	"advisor/internal/backend"
@@ -30,6 +31,16 @@ type fakeBackend struct {
 	// real runtime no longer listing it on the next Models() call.
 	deleteErr error
 	deleted   []string
+
+	// folder and folderErr are what ModelsFolder returns.
+	folder    backend.ModelsFolder
+	folderErr error
+
+	// pullCalls counts Pull calls (pull_test.go: a refused download must not
+	// reach the runtime); pullErr, when set, is what Pull returns instead of
+	// ErrUnsupportedSource.
+	pullCalls atomic.Int32
+	pullErr   error
 }
 
 func (f *fakeBackend) Name() string { return f.name }
@@ -45,6 +56,10 @@ func (f *fakeBackend) Show(context.Context, string) (backend.ModelInfo, error) {
 }
 func (f *fakeBackend) Running(context.Context) ([]backend.Loaded, error) { return nil, nil }
 func (f *fakeBackend) Pull(context.Context, backend.ModelSource, func(backend.PullProgress)) error {
+	f.pullCalls.Add(1)
+	if f.pullErr != nil {
+		return f.pullErr
+	}
 	return backend.ErrUnsupportedSource
 }
 func (f *fakeBackend) Generate(context.Context, backend.GenerateRequest, func(backend.GenerateEvent) error) error {
@@ -67,6 +82,12 @@ func (f *fakeBackend) Delete(_ context.Context, name string) error {
 }
 func (f *fakeBackend) Install(context.Context, func(backend.InstallProgress)) error { return nil }
 func (f *fakeBackend) Start(context.Context) error                                  { return nil }
+
+// ModelsFolder answers folder, the way a test sets where the runtime says it
+// keeps models; the zero value is a runtime that has not said.
+func (f *fakeBackend) ModelsFolder(context.Context) (backend.ModelsFolder, error) {
+	return f.folder, f.folderErr
+}
 
 func newBackendTestServer(t *testing.T, backends ...backend.Backend) (*Server, *store.Store) {
 	t.Helper()

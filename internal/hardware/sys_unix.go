@@ -20,3 +20,7 @@ func diskFree(path string) (uint64, error) {
 }
 
 func hideWindow(*exec.Cmd) {}
+
+// savedEnvVar is the Windows registry's saved value of an environment
+// variable (user and machine); there is no such thing here.
+func savedEnvVar(string) (user, machine string) { return "", "" }

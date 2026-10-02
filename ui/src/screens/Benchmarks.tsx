@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { ApiRequestError, api } from '../api/client'
-import type { BenchModel, BenchModelsResponse, BenchPlan, BenchProgress, BenchRun, PullStatus } from '../api/types'
+import type { BenchModel, BenchModelsResponse, BenchPlan, BenchProgress, BenchRun, PullStatus, RoomCheck } from '../api/types'
 import { CopyButton } from '../components/CopyButton'
 import { Figure } from '../components/Figure'
 import { SpeedWithVerdict } from '../components/SpeedVerdict'
 import { ModelList } from '../components/ModelList'
+import { RoomNote } from '../components/RoomNote'
 import { minutes, TestProgress } from '../components/TestProgress'
 import { Working } from '../components/Working'
 import { en } from '../copy/en'
@@ -416,6 +417,7 @@ function DownloadAndTest({
   onCancel: () => void
 }) {
   const size = formatDownload(m.download_bytes ?? 0)
+  const [room, setRoom] = useState<RoomCheck | null>(null)
   const mine = pull && (pull.model === m.name || !pull.model)
   if (pull?.status === 'running' && mine) {
     return (
@@ -442,7 +444,8 @@ function DownloadAndTest({
         </p>
       ) : null}
       {pull?.status === 'cancelled' && mine ? <p className="notice">{c.downloadCancelled}</p> : null}
-      <button type="button" className="button" disabled={pull?.status === 'running'} onClick={onDownload}>
+      <RoomNote target={{ kind: 'pull', tag: m.name }} onResult={setRoom} refreshKey={pull?.status} />
+      <button type="button" className="button" disabled={pull?.status === 'running' || room?.verdict === 'not_enough'} onClick={onDownload}>
         {c.downloadAndRun(size)}
       </button>
     </div>

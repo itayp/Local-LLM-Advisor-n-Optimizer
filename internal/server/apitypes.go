@@ -7,6 +7,7 @@ import (
 	"advisor/internal/catalog/external"
 	"advisor/internal/catalog/refresh"
 	"advisor/internal/chatapps"
+	"advisor/internal/diskroom"
 	"advisor/internal/estimate"
 	"advisor/internal/hardware"
 	"advisor/internal/recommend"
@@ -71,6 +72,8 @@ func APITypes() []any {
 		BackendStartResponse{},
 		PullRequest{},
 		PullStatus{},
+		ModelsFolderResponse{}, // GET /api/models/folder (P2-3, D-72)
+		diskroom.Result{},      // GET .../check (P2-3): need and left are figures; free space is read from the OS
 		chatapps.App{},
 		ChatAppsResponse{},
 		SettingsResponse{},

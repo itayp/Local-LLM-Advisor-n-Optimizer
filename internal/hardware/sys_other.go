@@ -12,3 +12,5 @@ func diskFree(string) (uint64, error) {
 }
 
 func hideWindow(*exec.Cmd) {}
+
+func savedEnvVar(string) (user, machine string) { return "", "" }

@@ -32,8 +32,9 @@ var layer = map[string]int{
 	"internal/update":     1,
 	"internal/catalog/hf": 1,
 
-	"internal/catalog": 2,
-	"internal/backend": 2,
+	"internal/catalog":  2,
+	"internal/backend":  2,
+	"internal/diskroom": 2,
 
 	"internal/backend/ollama": 3,
 	"internal/estimate":       3,

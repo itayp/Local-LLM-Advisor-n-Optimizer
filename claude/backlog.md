@@ -612,6 +612,12 @@ own setting, then confirms from what Ollama reports. On the Linux user-space
 install it sets the folder itself. Moving existing models is copy, verify,
 switch, and delete the old copy only on a second click.
 
+**Built (P2-3, `claude/p2-3-disk-space.md`).** `Backend.ModelsFolder`, the fresh
+free-space check (`internal/diskroom`, 10 GB warn threshold, CHOSEN) and the note
+beside every download button. A pull or an installer download that does not fit is
+refused with both numbers before the runtime is called. "Keep models on another
+drive" is still P2-7.
+
 ## o. "Looking at images": what is it, and is it a normal category?
 
 **From:** Itay, 2026-09-29. **Scheduled:** phase 2, step P2-1.

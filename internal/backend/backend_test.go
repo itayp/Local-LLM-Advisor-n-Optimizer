@@ -28,6 +28,9 @@ func (f fake) Unload(context.Context, string) error                 { return nil
 func (f fake) Delete(context.Context, string) error                 { return nil }
 func (f fake) Install(context.Context, func(InstallProgress)) error { return nil }
 func (f fake) Start(context.Context) error                          { return nil }
+func (f fake) ModelsFolder(context.Context) (ModelsFolder, error) {
+	return ModelsFolder{Control: FolderUnknown}, nil
+}
 
 func TestRegistry(t *testing.T) {
 	r := NewRegistry()

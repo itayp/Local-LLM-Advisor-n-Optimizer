@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
-import type { InstallSizeResponse, InstallStatus } from '../api/types'
+import type { InstallSizeResponse, InstallStatus, RoomCheck } from '../api/types'
 import { en } from '../copy/en'
 import { formatDownload } from '../onboarding/format'
 import { Progress } from '../onboarding/Progress'
+import { RoomNote } from './RoomNote'
 
 const c = en.screens.home
 
@@ -16,6 +17,7 @@ const c = en.screens.home
 export function InstallCard({ name, onDone }: { name: string; onDone: () => void }) {
   const [size, setSize] = useState<InstallSizeResponse | null>(null)
   const [status, setStatus] = useState<InstallStatus | null>(null)
+  const [room, setRoom] = useState<RoomCheck | null>(null)
   const poll = useRef<number | null>(null)
 
   useEffect(() => {
@@ -62,7 +64,8 @@ export function InstallCard({ name, onDone }: { name: string; onDone: () => void
       ) : (
         <>
           {status?.status === 'failed' ? <p className="notice notice--warning">{c.next.installFailed(status.error ?? '')}</p> : null}
-          <button type="button" className="button" onClick={start}>
+          <RoomNote target={{ kind: 'install', backend: name }} onResult={setRoom} />
+          <button type="button" className="button" disabled={room?.verdict === 'not_enough'} onClick={start}>
             {c.next.install(size?.known ? formatDownload(size.bytes) : undefined)}
           </button>
         </>

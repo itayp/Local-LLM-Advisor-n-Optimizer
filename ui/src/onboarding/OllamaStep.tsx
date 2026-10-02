@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
-import type { BackendInfo, InstallSizeResponse, InstallStatus, InstalledModel } from '../api/types'
+import type { BackendInfo, InstallSizeResponse, InstallStatus, InstalledModel, RoomCheck } from '../api/types'
+import { RoomNote } from '../components/RoomNote'
 import { Term } from '../components/Term'
 import { en } from '../copy/en'
 import { formatDownload } from './format'
@@ -22,6 +23,7 @@ export function OllamaStep({ onNext }: { onNext: () => void }) {
   const [backendError, setBackendError] = useState<string | null>(null)
   const [installSize, setInstallSize] = useState<InstallSizeResponse | null>(null)
   const [install, setInstall] = useState<InstallStatus | null>(null)
+  const [room, setRoom] = useState<RoomCheck | null>(null)
   const [starting, setStarting] = useState(false)
   const [startError, setStartError] = useState<string | null>(null)
   const [models, setModels] = useState<InstalledModel[]>([])
@@ -149,7 +151,8 @@ export function OllamaStep({ onNext }: { onNext: () => void }) {
                 {c.installFailed(install.error ?? '')}
               </p>
             ) : null}
-            <button type="button" className="button" onClick={startInstall}>
+            <RoomNote target={{ kind: 'install', backend: name }} onResult={setRoom} />
+            <button type="button" className="button" disabled={room?.verdict === 'not_enough'} onClick={startInstall}>
               {c.install(installSize?.known ? formatDownload(installSize.bytes) : undefined)}
             </button>
           </>

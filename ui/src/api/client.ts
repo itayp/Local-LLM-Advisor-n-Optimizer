@@ -20,11 +20,13 @@ import type {
   InstallSizeResponse,
   InstallStatus,
   ModelDetailResponse,
+  ModelsFolder,
   ModelFitResponse,
   OnboardingStatus,
   PullStatus,
   Purpose,
   RecommendResult,
+  RoomCheck,
   SettingsResponse,
   SettingsUpdate,
   SpeedNeedsResponse,
@@ -181,6 +183,12 @@ export const api = {
   /** Launch name's runtime; poll backends() afterwards until it reports running. */
   backendStart: (name: string, signal?: AbortSignal) =>
     send<BackendStartResponse>('POST', `/backends/${encodeURIComponent(name)}/start`, signal),
+  /** Is there room for this model download? Read fresh from the disk, before the button is clicked. */
+  pullCheck: (ollamaTag: string, signal?: AbortSignal) => get<RoomCheck>(`/models/pull/check?ollama_tag=${encodeURIComponent(ollamaTag)}`, signal),
+  /** Is there room for name's installer (downloaded to the temporary folder)? */
+  installCheck: (name: string, signal?: AbortSignal) => get<RoomCheck>(`/backends/${encodeURIComponent(name)}/install/check`, signal),
+  /** Where the runtime says it keeps models, and the space free there. */
+  modelsFolder: (signal?: AbortSignal) => get<ModelsFolder>('/models/folder', signal),
   /** The latest download status; the UI polls this. */
   pullStatus: (signal?: AbortSignal) => get<PullStatus>('/models/pull', signal),
   /** Start downloading an Ollama tag (a recommendation's pull_name). 409 while one is already running. */

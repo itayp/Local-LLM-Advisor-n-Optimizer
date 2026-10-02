@@ -948,6 +948,43 @@ export interface BackendStartResponse {
   status: 'starting'
 }
 
+// --- Is there room? (P2-3; Go: internal/diskroom, internal/server/room.go) ---
+//
+// The check every download makes first. `message` is the daemon's own
+// sentence, with both numbers; the screen adds labels, not claims. Free space
+// is read from the OS (source "n/a"), so it is plain text; the download's
+// size and what is left carry their source.
+
+export type RoomVerdict = 'enough' | 'low' | 'not_enough' | 'unknown'
+
+/** GET /api/models/pull/check and GET /api/backends/{name}/install/check (Go: diskroom.Result). */
+export interface RoomCheck {
+  verdict: RoomVerdict
+  message: string
+  need?: Bytes
+  free_bytes: number
+  free_known: boolean
+  left?: Bytes
+  volume?: string
+  folder?: string
+  where: 'models' | 'temp'
+  /** What the screen may offer beside the message, by code: "remove_models". */
+  actions: string[]
+}
+
+/** GET /api/models/folder (Go: server.ModelsFolderResponse): where the runtime says its models are. */
+export interface ModelsFolder {
+  backend: string
+  path: string
+  /** False: Ollama has not said, and path is where it will put models. */
+  known: boolean
+  how: string
+  control: 'advisor' | 'runtime_app' | 'administrator' | 'unknown'
+  free_bytes: number
+  free_known: boolean
+  volume?: string
+}
+
 /** POST /api/models/pull (Go: server.PullRequest). */
 export interface PullRequest {
   ollama_tag: string

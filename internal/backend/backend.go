@@ -358,6 +358,44 @@ type InstallSizer interface {
 	InstallSize(ctx context.Context) (bytes int64, known bool, err error)
 }
 
+// FolderControl says who can change where a runtime keeps its models
+// (ARCHITECTURE.md D-72, D-78). The advisor reads it to say, before any
+// button, whether the change is one it can make or one the person makes in
+// another program.
+type FolderControl string
+
+const (
+	// FolderAdvisor: a server the advisor starts itself (no desktop app), so
+	// the folder is the advisor's to pass on.
+	FolderAdvisor FolderControl = "advisor"
+	// FolderRuntimeApp: the runtime's own desktop app decides, and the person
+	// changes it in that app's settings.
+	FolderRuntimeApp FolderControl = "runtime_app"
+	// FolderAdministrator: a system service; changing it needs an
+	// administrator, and the advisor never asks for a password.
+	FolderAdministrator FolderControl = "administrator"
+	// FolderUnknown: the runtime is not installed, or the advisor cannot tell
+	// how it is run. Unknown is unknown (D-21).
+	FolderUnknown FolderControl = "unknown"
+)
+
+// ModelsFolder is where a runtime keeps the models it downloads, as the
+// runtime itself says (D-72), and who can change that.
+type ModelsFolder struct {
+	// Path is the folder. When Known is false it is where the runtime will
+	// put models by default (the OS default for it), or "" when even that
+	// could not be worked out.
+	Path string `json:"path"`
+	// Known is true only when the runtime itself reported Path: from a model
+	// it has installed, or from its own server log. False means the runtime
+	// has not said, and Path is a default, not a reading.
+	Known bool `json:"known"`
+	// How says in words how Path was read ("from a model Ollama has
+	// installed"), or why it is only a default.
+	How     string        `json:"how"`
+	Control FolderControl `json:"control"`
+}
+
 // Backend is a runtime the advisor can drive.
 type Backend interface {
 	// Name is the registry key and the value stored in backends.name:
@@ -400,6 +438,13 @@ type Backend interface {
 	// build-plan step 8). The runtime is the one place that model's files
 	// live (D-16); the advisor never touches a model file directly.
 	Delete(ctx context.Context, name string) error
+
+	// ModelsFolder reports where the runtime keeps models, as the runtime
+	// itself says (D-72), and who can change that. For reading only:
+	// nothing here sets the folder (D-78; setting it is a later step). A
+	// runtime that is not running still answers, from its own log or the OS
+	// default, with Known false where it cannot say.
+	ModelsFolder(ctx context.Context) (ModelsFolder, error)
 
 	// Install downloads and sets up the runtime itself. progress may be
 	// nil. Product rule 5: this only ever runs from a UI button that says

@@ -155,6 +155,12 @@ func (s *Server) handleBackendInstallStart(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
+	// Is there room for the installer in the temporary folder? Same check as
+	// a model pull, before anything is downloaded.
+	if res := s.installRoom(r.Context(), b); res.Refuses() {
+		refuseForRoom(w, res)
+		return
+	}
 	status, started := s.installs.start(b.Name(), func(ctx context.Context, update func(InstallStatus)) {
 		ctx, cancel := context.WithTimeout(ctx, installTimeout)
 		defer cancel()

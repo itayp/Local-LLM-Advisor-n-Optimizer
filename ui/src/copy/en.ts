@@ -49,6 +49,19 @@ export const en = {
     version: (v: string) => `version ${v}`,
     daemonUnreachable: 'The advisor is not running on this computer. Start it and reload this page.',
   },
+  // The free-space note beside every download button (P2-3). The sentences
+  // themselves come from the daemon (internal/diskroom), so the refusal and
+  // the note say the same thing; only labels live here.
+  room: {
+    checking: 'Checking the space on your drive…',
+    unavailable: 'The advisor could not check the space on your drive, so it cannot say whether this fits. You can still go ahead.',
+    actions: {
+      remove_models: 'Remove a model you no longer use',
+    },
+    advancedNeeds: 'Download size',
+    advancedFree: 'Free now',
+    advancedLeft: 'Left afterwards',
+  },
   figure: {
     estimatedLabel: 'estimated',
     measuredLabel: 'measured on this computer',
@@ -564,6 +577,7 @@ export const en = {
       versionPlatform: (os: string, arch: string) => `${os}/${arch}`,
       modelsFolder: 'Models folder',
       modelsFolderUnknown: 'could not be read yet',
+      modelsFolderNotYet: 'Ollama has not saved a model yet; this is where it will put them.',
       dataFolder: 'Data folder',
       open: 'Open',
       opening: 'Opening…',

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api } from '../api/client'
+import { ApiRequestError, api } from '../api/client'
 import type { PullStatus, Recommendation } from '../api/types'
 import { Term } from '../components/Term'
 import { en } from '../copy/en'
@@ -22,7 +22,12 @@ export function Getting({ recommendation, onDone }: { recommendation: Recommenda
     api
       .pullStart(recommendation.pull_name)
       .then((s) => !cancelled && setStatus(s))
-      .catch(() => {
+      .catch((startErr: unknown) => {
+        // Not enough room is the daemon's refusal, in words: say it.
+        if (startErr instanceof ApiRequestError && startErr.code === 'not_enough_room') {
+          if (!cancelled) setError(startErr.message)
+          return
+        }
         // A pull may already be running (a reload mid-download): fall
         // back to reading its status instead of treating this as a
         // failure.

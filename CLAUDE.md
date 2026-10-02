@@ -95,6 +95,7 @@ internal/server/        HTTP API (/api/*), Host/Origin checks, embedded UI (go:e
 internal/store/         SQLite via modernc.org/sqlite; migrations/NNNN_*.sql; DefaultDataDir
 internal/hardware/      Profile + Detect: per-OS probes behind an env seam, runtime-support rules, tier, fingerprint
 internal/backend/       Backend interface + registry; internal/backend/ollama (step 3) drives Ollama through egress.Local, and its installer download is pinned to a release and checked against Ollama's published sha256sum.txt (download.go, D-66)
+internal/diskroom/      the free-space check before every download (P2-3): Checker.Check reads the volume fresh and returns enough / low / not_enough / unknown with a sentence; Config.LowAfter is CHOSEN. The one function P2-10's local-file copy calls too
 internal/catalog/       curated families: YAML loader + validation, repo-file grouping, installed-model matching (step 4)
 internal/catalog/gguf/  the GGUF header parser (stops at the tokenizer; real header fixtures in testdata/)
 internal/catalog/parquet/  a minimal Parquet reader for Arena's leaderboard files: flat tables, plain and dictionary encodings, Snappy (D-56)

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
-import type { DataDeleteResponse, HardwareResponse, Health, NotifyMode, UpdateCheckResponse } from '../api/types'
+import type { DataDeleteResponse, HardwareResponse, Health, ModelsFolder, NotifyMode, UpdateCheckResponse } from '../api/types'
 import { formatBytes } from '../components/Figure'
 import { en } from '../copy/en'
 import { forgetLocalSettings, useSettings } from '../state/settings'
@@ -22,6 +22,8 @@ export function Settings() {
   const [health, setHealth] = useState<Health | null>(null)
   const [hw, setHw] = useState<HardwareResponse | null>(null)
   const [dataDir, setDataDir] = useState<string | null>(null)
+  // Where Ollama says its models are (D-72); the profile's reading is only the fallback.
+  const [folder, setFolder] = useState<ModelsFolder | null>(null)
 
   useEffect(() => {
     const ac = new AbortController()
@@ -32,6 +34,10 @@ export function Settings() {
     api
       .hardware(ac.signal)
       .then(setHw)
+      .catch(() => undefined)
+    api
+      .modelsFolder(ac.signal)
+      .then(setFolder)
       .catch(() => undefined)
     api
       .settings(ac.signal)
@@ -109,9 +115,16 @@ export function Settings() {
             <dt>{c.modelsFolder}</dt>
             <dd>
               <span>
-                {hw?.profile ? hw.profile.storage.models_dir : c.modelsFolderUnknown}
-                {hw?.profile?.storage.free_known ? ` — ${c.freeSpace(formatBytes(hw.profile.storage.free_bytes))}` : ` — ${c.freeSpaceUnknown}`}
+                {folder?.path ? folder.path : hw?.profile ? hw.profile.storage.models_dir : c.modelsFolderUnknown}
+                {folder?.path
+                  ? folder.free_known
+                    ? ` — ${c.freeSpace(formatBytes(folder.free_bytes))}`
+                    : ` — ${c.freeSpaceUnknown}`
+                  : hw?.profile?.storage.free_known
+                    ? ` — ${c.freeSpace(formatBytes(hw.profile.storage.free_bytes))}`
+                    : ` — ${c.freeSpaceUnknown}`}
               </span>
+              {folder && !folder.known && folder.path ? <span className="screen__note"> {c.modelsFolderNotYet}</span> : null}
               <OpenButton open={() => api.openModelsDir()} />
             </dd>
           </div>

@@ -24,6 +24,7 @@ import (
 
 	"advisor/internal/backend"
 	"advisor/internal/bench"
+	"advisor/internal/diskroom"
 	"advisor/internal/store"
 	"advisor/internal/update"
 	"advisor/internal/version"
@@ -102,6 +103,12 @@ type Server struct {
 	installs installTracker
 	pulls    pullTracker
 
+	// room is the free-space check every download makes first (room.go);
+	// room.Free is the seam tests replace so no real disk is read. tempDir
+	// is where an installer is downloaded (defaults to os.TempDir).
+	room    diskroom.Checker
+	tempDir func() string
+
 	// open asks the OS to open a folder in its file manager (settings.go's
 	// two "open" buttons). Defaults to openInFileManager; tests set it to
 	// a fake so they never launch a real file manager.
@@ -127,7 +134,7 @@ func New(log *slog.Logger, st *store.Store) *Server {
 	if log == nil {
 		log = slog.Default()
 	}
-	s := &Server{log: log, mux: http.NewServeMux(), started: time.Now(), store: st, backendList: backend.All, open: openInFileManager, checkUpdate: defaultCheckUpdate}
+	s := &Server{log: log, mux: http.NewServeMux(), started: time.Now(), store: st, backendList: backend.All, open: openInFileManager, checkUpdate: defaultCheckUpdate, room: diskroom.New()}
 	s.hw.ready = make(chan struct{})
 	s.cat.init()
 	s.wch.init()
@@ -181,6 +188,9 @@ func (s *Server) routes() {
 	s.api("GET /api/backends/{name}/install", s.handleBackendInstallStatus)
 	s.api("POST /api/backends/{name}/install", s.handleBackendInstallStart)
 	s.api("POST /api/backends/{name}/start", s.handleBackendStart)
+	s.api("GET /api/models/folder", s.handleModelsFolder) // where the runtime says its models are, and the space free there (P2-3, D-72)
+	s.api("GET /api/models/pull/check", s.handlePullCheck)
+	s.api("GET /api/backends/{name}/install/check", s.handleBackendInstallCheck)
 	s.api("GET /api/models/pull", s.handlePullStatus)
 	s.api("POST /api/models/pull", s.handlePullStart)
 	s.api("POST /api/models/pull/cancel", s.handlePullCancel)

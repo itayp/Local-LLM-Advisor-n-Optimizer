@@ -184,6 +184,14 @@ func (s *Server) handlePullStart(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// Is there room? Read the drive now, before the runtime is touched. A
+	// download that cannot fit is refused with both numbers; one whose size
+	// or free space could not be read goes ahead (never block on a value the
+	// advisor could not read).
+	if res := s.pullRoom(r.Context(), b, tag); res.Refuses() {
+		refuseForRoom(w, res)
+		return
+	}
 	status, started := s.pulls.start(tag, func(ctx context.Context, update func(PullStatus)) {
 		err := b.Pull(ctx, backend.ModelSource{Kind: backend.SourceOllamaTag, OllamaTag: tag}, func(p backend.PullProgress) {
 			update(PullStatus{Status: "running", Message: p.Status, Completed: p.Completed, Total: p.Total})

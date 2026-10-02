@@ -6,6 +6,7 @@ import { CopyButton } from '../components/CopyButton'
 import { Figure, formatBytes } from '../components/Figure'
 import { ModelList } from '../components/ModelList'
 import { PublicLine } from '../components/PublicFigure'
+import { RoomNote } from '../components/RoomNote'
 import { SpeedWithVerdict } from '../components/SpeedVerdict'
 import { Working } from '../components/Working'
 import { en } from '../copy/en'
@@ -183,6 +184,7 @@ function Card({ r, pathSource, advanced }: { r: Recommendation; pathSource: Reco
         <dt>{c.download}</dt>
         <dd>{r.installed ? c.installed : formatDownload(r.download_bytes)}</dd>
       </dl>
+      {r.installed ? null : <RoomNote target={{ kind: 'pull', tag: r.pull_name }} quiet />}
 
       <h3>{c.why}</h3>
       <ul className="card__reasons">

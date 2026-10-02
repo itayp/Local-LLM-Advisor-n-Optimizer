@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/windows/registry"
 )
 
 var (
@@ -39,4 +41,25 @@ const createNoWindow = 0x08000000
 
 func hideWindow(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
+}
+
+// savedEnvVar reads an environment variable as Windows has it saved: the
+// user's (HKCU\Environment) and the machine's. A process only has the
+// variables its parent had when it started, so a value set since is here
+// and not in os.Getenv. "" means not set, or not readable.
+func savedEnvVar(name string) (user, machine string) {
+	read := func(root registry.Key, sub string) string {
+		k, err := registry.OpenKey(root, sub, registry.QUERY_VALUE)
+		if err != nil {
+			return ""
+		}
+		defer k.Close()
+		v, _, err := k.GetStringValue(name)
+		if err != nil {
+			return ""
+		}
+		return v
+	}
+	return read(registry.CURRENT_USER, `Environment`),
+		read(registry.LOCAL_MACHINE, `SYSTEM\CurrentControlSet\Control\Session Manager\Environment`)
 }

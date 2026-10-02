@@ -1,0 +1,1 @@
+time=2026-09-29T09:12:03.411Z level=INFO source=routes.go:1940 msg="server config" env="map[OLLAMA_HOST:http://127.0.0.1:11434 OLLAMA_MODELS: OLLAMA_NUM_PARALLEL:1]"

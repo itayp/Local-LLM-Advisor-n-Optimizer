@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
-import type { Purpose, Recommendation, RecommendResult } from '../api/types'
+import type { Purpose, Recommendation, RecommendResult, RoomCheck } from '../api/types'
 import { ModelList } from '../components/ModelList'
 import { PublicLine } from '../components/PublicFigure'
+import { RoomNote } from '../components/RoomNote'
 import { SpeedWithVerdict } from '../components/SpeedVerdict'
 import { Term } from '../components/Term'
 import { Working } from '../components/Working'
@@ -67,6 +68,8 @@ export function Recommendations({ purposes, onDownload }: { purposes: Purpose[];
 
 function Card({ r, onDownload }: { r: Recommendation; onDownload: (r: Recommendation) => void }) {
   const words = Math.round((r.num_ctx * 0.75) / 1000) * 1000
+  // The free-space check is shown before the click; a download that cannot fit is not offered (the daemon refuses it too).
+  const [room, setRoom] = useState<RoomCheck | null>(null)
   return (
     <article className="card" aria-label={r.display_name}>
       <header className="card__head">
@@ -99,7 +102,9 @@ function Card({ r, onDownload }: { r: Recommendation; onDownload: (r: Recommenda
 
       <PublicLine entry={r.public} />
 
-      <button type="button" className="button" onClick={() => onDownload(r)}>
+      {r.installed ? null : <RoomNote target={{ kind: 'pull', tag: r.pull_name }} onResult={setRoom} />}
+
+      <button type="button" className="button" disabled={room?.verdict === 'not_enough'} onClick={() => onDownload(r)}>
         {r.installed ? c.continueInstalled : c.downloadButton(formatDownload(r.download_bytes))}
       </button>
     </article>
