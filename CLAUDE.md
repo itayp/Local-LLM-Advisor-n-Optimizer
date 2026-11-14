@@ -358,3 +358,17 @@ Before a step, read `CLAUDE.md`, `ARCHITECTURE.md`, and the packages the
 step's prompt names. Step 0's findings that bind later steps are
 `ARCHITECTURE.md` D-20. When a decision changes, add a superseding entry to
 `ARCHITECTURE.md` rather than editing the old one.
+
+## Project board
+
+This repo reports its status to Itay's project board (https://claude.ai/artifact/BYkzTTo5TgxmUEb27eKmvp) through `.claude/board.json`. A daily job copies that file from the default branch (`main`) to the board, so the board only changes once the file is committed and on `main`. Work on a branch reaches the board when the branch is merged.
+
+Keep the file current:
+
+- Before you finish a session that changed where the project stands (finished or started a task, found new work, hit a blocker, merged a branch), update `.claude/board.json` and commit it with the rest of your work.
+- `status` per task: `todo`, `doing`, `review` (waiting on Itay to look or decide) or `done`. When you finish a task, add a one-line `resultSummary` and, if there is one, a `resultUrl` (a PR, a file on GitHub, an artifact).
+- `owner`: `me` for things only Itay can do (decide, test on a device, sign, pay, review); `claude` for work a Claude session can do. Each `claude` task's `prompt` must be ready to paste into a new session as is. Each `me` task's `prompt` says exactly what Itay needs to do.
+- New task ids start with the file's `idPrefix` and never change or get reused. Don't delete tasks: mark them `done`, and write "Dropped: <why>" in `resultSummary` if abandoned.
+- Set `updatedAt` (ISO 8601, UTC) on each task you change, and the top-level `updatedAt` whenever you change anything. Leave the timestamps of tasks you didn't change alone: Itay also edits tasks on the board, and whichever side changed a task last wins.
+- `notes`: 2–4 sentences on where the project stands now, written for someone who hasn't looked in a month.
+- Keep 5–15 open tasks, most important first. Never put secrets, tokens, passwords or personal data in this file.

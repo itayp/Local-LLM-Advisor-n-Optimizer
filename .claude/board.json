@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "board": "https://claude.ai/artifact/BYkzTTo5TgxmUEb27eKmvp",
+  "projectId": "local-llm",
+  "idPrefix": "llm-",
+  "name": "Local LLM Advisor",
+  "status": "active",
+  "notes": "Go command-line tool that checks which local AI models will run well on a given computer and benchmarks them to prove it, for people new to local AI. Last commit 3 Oct 2026 (Step P2-3 fixes); BUILD_PLAN_PHASE2.md and BUILD_PLAN_PHASE3.md hold the remaining plan.",
+  "updatedAt": "2026-11-14T18:02:03Z",
+  "tasks": [
+    {
+      "id": "llm-1",
+      "title": "Fill in this board file from the repo's real state",
+      "owner": "claude",
+      "status": "todo",
+      "prompt": "In itayp/Local-LLM-Advisor-n-Optimizer, read the README, recent commits, backlog/plan files, open TODOs and test state. Then rewrite .claude/board.json following the 'Project board' section of CLAUDE.md: accurate notes, 5-15 real next steps split between me and claude (ready-to-run prompts on the claude ones), and recently finished work as done with a one-line result. Mark this task done when finished. Commit and push to main.",
+      "resultSummary": "",
+      "resultUrl": "",
+      "updatedAt": "2026-11-14T18:02:03Z"
+    }
+  ]
+}
